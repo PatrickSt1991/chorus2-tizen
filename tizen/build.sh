@@ -18,15 +18,25 @@
 #   TIZEN_BIN     Path to the tizen CLI. Defaults to ~/tizen-studio/tools/ide/bin/tizen.
 #   TIZEN_PROFILE Tizen signing profile name. Defaults to "Chorus2".
 #
-# To run only the prepare steps (no tizen CLI required) — for dry-run /
-# layout validation — pass --dry-run as the first argument.
+# Flags:
+#   --dry-run    Run only the prepare steps; no `tizen` CLI required.
+#                Useful for verifying the build layout.
+#   --no-package Run prepare + `tizen build-web` but skip `tizen package`.
+#                CI uses this and drives `tizen package` separately via an
+#                expect script (the packaging step prompts for cert
+#                passwords). Local dev runs without flags for end-to-end.
 
 set -euo pipefail
 
 DRY_RUN=0
-if [[ "${1:-}" == "--dry-run" ]]; then
-    DRY_RUN=1
-fi
+NO_PACKAGE=0
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run)    DRY_RUN=1 ;;
+        --no-package) NO_PACKAGE=1 ;;
+        *) echo "[build] unknown flag: $arg" >&2; exit 2 ;;
+    esac
+done
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build"
@@ -126,6 +136,12 @@ fi
 cd "$BUILD_DIR"
 log "tizen build-web"
 "$TIZEN_BIN" build-web -e ".*" -e "node_modules/*"
+
+if [[ $NO_PACKAGE -eq 1 ]]; then
+    log "--no-package: skipping tizen package (caller will run it via expect)"
+    log "web build ready at $BUILD_DIR (.buildResult/ will be populated by the packaging step)"
+    exit 0
+fi
 
 log "tizen package (profile: $PROFILE_NAME)"
 "$TIZEN_BIN" package -t wgt -s "$PROFILE_NAME" -- "$BUILD_DIR/.buildResult"
