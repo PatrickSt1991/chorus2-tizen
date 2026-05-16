@@ -293,7 +293,7 @@
       '#tz-setup input:focus,#tz-setup button:focus{' +
         'outline:3px solid #4ea1ff;outline-offset:3px;border-color:#4ea1ff' +
       '}' +
-      '#tz-setup input::placeholder{color:#56627a}' +
+      '#tz-setup input::placeholder{color:#9aa6b8;opacity:1}' +
       '#tz-setup button[disabled]{cursor:default}';
     document.head.appendChild(s);
   })();
