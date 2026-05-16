@@ -1,6 +1,10 @@
 name: Build Chorus2
 
-on: [push, pull_request]
+on:
+  push:
+    branches-ignore:
+      - tizen
+  pull_request:
 
 jobs:
   build:
