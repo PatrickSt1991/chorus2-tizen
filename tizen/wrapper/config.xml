@@ -5,9 +5,14 @@
         version="1.0.0"
         viewmodes="maximized">
 
+    <!-- required_version is the minimum Tizen version. Bumped to 5.0
+         because the .wgt assumes Chromium 56-era features (capture-phase
+         event listeners with stopImmediatePropagation, AbortController
+         with fallback, fetch + Headers, scrollIntoView, Service Worker).
+         2018 Tizen 4.0 TVs are uncommon and untested for us. -->
     <tizen:application id="chorus2tzn.Chorus2"
                        package="chorus2tzn"
-                       required_version="4.0"/>
+                       required_version="5.0"/>
 
     <content src="index.html"/>
 
