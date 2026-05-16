@@ -65,11 +65,63 @@
         button('reset', 'Reset', false) +
       '</div>' +
       '<p id="tz-err" style="color:#ff6b6b;min-height:1.4em;margin:12px 0 0"></p>' +
+      '<p style="color:#7a8590;font-size:13px;margin:6px 0 0">Use ↑ / ↓ or OK to move between fields. Back exits.</p>' +
       '</form>';
     document.body.appendChild(wrap);
 
     var form = document.getElementById('tz-setup');
     form.host.focus();
+
+    function focusables() {
+      return [form.host, form.port, form.username, form.password,
+              document.getElementById('tz-save'),
+              document.getElementById('tz-reset')];
+    }
+
+    function shiftFocus(delta) {
+      var list = focusables();
+      var idx = list.indexOf(document.activeElement);
+      if (idx < 0) idx = 0;
+      var next = Math.max(0, Math.min(list.length - 1, idx + delta));
+      list[next].focus();
+      if (list[next].select) try { list[next].select(); } catch (_) {}
+    }
+
+    // Arrow keys inside a text input do cursor movement by default, so the
+    // remote can't escape the field. Intercept Up/Down for focus, leave
+    // Left/Right alone so the user can still edit characters mid-string.
+    // Enter on the last input or on a button does its native action; on
+    // any earlier input it advances focus instead of submitting the form.
+    form.addEventListener('keydown', function (e) {
+      var list = focusables();
+      var idx = list.indexOf(document.activeElement);
+      var isInput = document.activeElement &&
+                    document.activeElement.tagName === 'INPUT';
+      switch (e.keyCode) {
+        case 38: // ArrowUp
+          shiftFocus(-1);
+          e.preventDefault();
+          break;
+        case 40: // ArrowDown
+          shiftFocus(+1);
+          e.preventDefault();
+          break;
+        case 13: // OK / Enter
+          // Advance focus when in an early input. From the password field
+          // (idx 3) or the buttons, fall through to browser default —
+          // password Enter submits the form, button Enter activates it.
+          if (isInput && idx < list.length - 3) {
+            shiftFocus(+1);
+            e.preventDefault();
+          }
+          break;
+        case 10009: // Tizen Back / Return
+          try { tizen.application.getCurrentApplication().exit(); }
+          catch (_) { /* not in Tizen WebView */ }
+          e.preventDefault();
+          break;
+      }
+    });
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -81,6 +133,7 @@
       };
       if (!cfg.host) {
         document.getElementById('tz-err').textContent = 'Host is required.';
+        form.host.focus();
         return;
       }
       saveConfig(cfg);
