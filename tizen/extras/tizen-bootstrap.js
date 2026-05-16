@@ -53,7 +53,7 @@
 
     var wrap = document.createElement('div');
     wrap.style.cssText =
-      'max-width:760px;margin:7vh auto;padding:56px 64px 44px;' +
+      'max-width:680px;margin:5vh auto;padding:40px 48px 36px;' +
       'background:#141a26;border:1px solid #232c3d;border-radius:14px;' +
       'box-shadow:0 12px 48px rgba(0,0,0,.55),0 2px 0 rgba(255,255,255,.03) inset;';
 
@@ -63,21 +63,21 @@
     // event handlers, which was causing install to abort silently).
     wrap.innerHTML =
       // Header — logo + title side by side (no CSS gap; margin-left does it)
-      '<div style="display:flex;align-items:center;margin:0 0 6px">' +
-        '<div style="width:64px;height:64px;border-radius:14px;overflow:hidden;' +
+      '<div style="display:flex;align-items:center;margin:0 0 4px">' +
+        '<div style="width:48px;height:48px;border-radius:11px;overflow:hidden;' +
         'background:linear-gradient(135deg,#4ea1ff,#2563eb);' +
         'display:flex;align-items:center;justify-content:center;' +
-        'box-shadow:0 4px 14px rgba(78,161,255,.25)">' +
+        'box-shadow:0 3px 10px rgba(78,161,255,.22)">' +
           '<img src="icon.png" alt="" id="tz-logo" ' +
-          'style="width:64px;height:64px;display:block">' +
+          'style="width:48px;height:48px;display:block">' +
         '</div>' +
-        '<h1 style="margin:0 0 0 22px;font-size:40px;font-weight:700;' +
-        'color:#f7f9fc;letter-spacing:-.015em;line-height:1.1">Chorus2 <span style="font-weight:400;color:#9aa6b8">for Tizen</span></h1>' +
+        '<h1 style="margin:0 0 0 18px;font-size:30px;font-weight:700;' +
+        'color:#ffffff;letter-spacing:-.01em;line-height:1.1">Chorus2 <span style="font-weight:400;color:#9aa6b8">for Tizen</span></h1>' +
       '</div>' +
-      '<p style="margin:8px 0 32px 86px;color:#c8d2dd;font-size:18px">' +
+      '<p style="margin:6px 0 24px 66px;color:#c8d2dd;font-size:16px">' +
         'Point this app at your Kodi server to get started.' +
       '</p>' +
-      '<div style="height:1px;background:#232c3d;margin:0 0 32px"></div>' +
+      '<div style="height:1px;background:#232c3d;margin:0 0 24px"></div>' +
 
       '<form id="tz-setup" autocomplete="off">' +
         // Server section
@@ -282,13 +282,13 @@
     var v = String(value).replace(/"/g, '&quot;');
     var p = String(placeholder).replace(/"/g, '&quot;');
     return (
-      '<label style="display:block;margin:0 0 18px">' +
-        '<span style="display:block;margin:0 0 8px;color:#d0d8e3;font-size:15px;font-weight:500">' + label + '</span>' +
+      '<label style="display:block;margin:0 0 16px">' +
+        '<span style="display:block;margin:0 0 7px;color:#d0d8e3;font-size:14px;font-weight:500">' + label + '</span>' +
         '<input name="' + name + '" type="' + type + '" value="' + v + '" placeholder="' + p + '" ' +
         'autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" ' +
-        'style="width:100%;box-sizing:border-box;padding:16px 18px;font-size:22px;' +
-        'background:#0d1218;border:2px solid #2a3242;border-radius:10px;color:#f5f7fa;' +
-        '-webkit-text-fill-color:#f5f7fa;caret-color:#4ea1ff;' +
+        'style="width:100%;box-sizing:border-box;padding:14px 16px;font-size:20px;font-weight:500;' +
+        'background:#0d1218;border:2px solid #2a3242;border-radius:10px;color:#ffffff;' +
+        '-webkit-text-fill-color:#ffffff;caret-color:#4ea1ff;' +
         'outline:none;font-family:inherit;' +
         '-webkit-transition:border-color .15s,box-shadow .15s;transition:border-color .15s,box-shadow .15s">' +
       '</label>'
@@ -332,10 +332,10 @@
       '}' +
       // Placeholder color: vendor-prefixed for older WebKit (Tizen 4–5),
       // Mozilla-prefixed for completeness, plus the modern selector.
-      '#tz-setup input::-webkit-input-placeholder{color:#9aa6b8;opacity:1}' +
-      '#tz-setup input:-ms-input-placeholder{color:#9aa6b8;opacity:1}' +
-      '#tz-setup input::-moz-placeholder{color:#9aa6b8;opacity:1}' +
-      '#tz-setup input::placeholder{color:#9aa6b8;opacity:1}' +
+      '#tz-setup input::-webkit-input-placeholder{color:#c8d0db;opacity:1}' +
+      '#tz-setup input:-ms-input-placeholder{color:#c8d0db;opacity:1}' +
+      '#tz-setup input::-moz-placeholder{color:#c8d0db;opacity:1}' +
+      '#tz-setup input::placeholder{color:#c8d0db;opacity:1}' +
       '#tz-setup button[disabled]{cursor:default;opacity:.65}' +
       // Press feedback
       '#tz-setup button:active{transform:translateY(1px)}'
@@ -654,27 +654,44 @@
     return true;
   }
 
+  // Arrow keys: always consume so Chorus2's keyboard handler (which
+  // forwards arrows to Kodi as remote-control commands when
+  // keyboardControl='kodi', the default) never sees them. Without this,
+  // every arrow press goes to Kodi server instead of moving focus on
+  // the TV.
+  function handleArrow(e, dir) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (moveFocus(dir)) return;
+    // No candidate in the requested direction. If focus is in a text
+    // input, blur it and try once more from the body — covers the case
+    // where the search bar is at the page edge with nothing beyond.
+    var active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+      active.blur();
+      moveFocus(dir);
+    }
+  }
+
+  // Use capture phase so we beat any handler Chorus2 registers via
+  // jQuery's $(document).keydown — those go on the bubble phase.
   document.addEventListener('keydown', function (e) {
     switch (e.keyCode) {
-      case 37: // ArrowLeft
-        if (moveFocus('left'))  e.preventDefault();
-        break;
-      case 38: // ArrowUp
-        if (moveFocus('up'))    e.preventDefault();
-        break;
-      case 39: // ArrowRight
-        if (moveFocus('right')) e.preventDefault();
-        break;
-      case 40: // ArrowDown
-        if (moveFocus('down'))  e.preventDefault();
-        break;
+      case 37: handleArrow(e, 'left');  break; // ArrowLeft
+      case 38: handleArrow(e, 'up');    break; // ArrowUp
+      case 39: handleArrow(e, 'right'); break; // ArrowRight
+      case 40: handleArrow(e, 'down');  break; // ArrowDown
       case 13: // OK / Enter
-        if (activateFocused()) e.preventDefault();
+        if (activateFocused()) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
         break;
       case 10009: // Tizen Back / Return
+        e.preventDefault();
+        e.stopImmediatePropagation();
         if (location.hash && location.hash !== '#' && location.hash !== '#home') {
           history.back();
-          e.preventDefault();
         } else {
           try {
             tizen.application.getCurrentApplication().exit();
@@ -685,16 +702,25 @@
       case 19:    // Tizen Pause
       case 10252: // Tizen PlayPause
       case 413:   // Tizen Stop
-        if (clickIfFound('.control-play')) e.preventDefault();
+        if (clickIfFound('.control-play')) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
         break;
       case 10232: // Tizen TrackPrevious
-        if (clickIfFound('.control-prev')) e.preventDefault();
+        if (clickIfFound('.control-prev')) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
         break;
       case 10233: // Tizen TrackNext
-        if (clickIfFound('.control-next')) e.preventDefault();
+        if (clickIfFound('.control-next')) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
         break;
     }
-  });
+  }, true); // capture phase
 
   // Make Chorus2's clickable surfaces focusable. Chorus2 uses <div>/<li>
   // with click handlers for cards, list rows, controls, and sidebar
@@ -740,16 +766,15 @@
     watchForControls();
   }
 
-  // Once Chorus2 has rendered something, give the user a starting focus.
-  // Without this, the first arrow press has nothing to navigate from and
-  // would silently do nothing on the very first frame.
-  function seedInitialFocus() {
+  // If Chorus2 hasn't focused anything by ~1.5s, seed focus on the first
+  // visible focusable so the user sees a focus ring without having to
+  // press arrows blindly. If Chorus2 (or a user click) already moved
+  // focus, leave it alone.
+  setTimeout(function () {
+    if (document.activeElement && document.activeElement !== document.body) return;
     var list = getFocusables();
-    if (list.length > 0) {
-      list[0].focus();
-    }
-  }
-  setTimeout(seedInitialFocus, 1500);
+    if (list.length > 0) list[0].focus();
+  }, 1500);
 
   // All patches are in place. Load Chorus2.
   if (document.readyState === 'loading') {
