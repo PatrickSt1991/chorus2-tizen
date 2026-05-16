@@ -68,13 +68,23 @@ jobs:
             -p "$CERT_PASSWORD"
           "$TIZEN" cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
 
-      # 7. Fetch avplayVideoPlayer.js from jellyfin-tizen master
+      # 7. Fetch avplayVideoPlayer.js from PatrickSt1991/tizen-jellyfin-avplay
       #    Overwrites our placeholder. Phase 3 will commit the real version
-      #    and this step becomes a no-op safety net.
-      - name: Fetch avplayVideoPlayer.js from jellyfin-tizen
+      #    and this step becomes a no-op safety net. We require a 200 (curl -f
+      #    fails on HTTP errors) and a non-trivial response size so a 404 page
+      #    can't sneak through and ship as a 14-byte "404: Not Found".
+      - name: Fetch avplayVideoPlayer.js
         run: |
-          curl -L -o tizen/extras/avplayVideoPlayer.js \
-            https://raw.githubusercontent.com/jellyfin/jellyfin-tizen/master/extras/avplayVideoPlayer.js
+          curl -fL --retry 3 \
+            -o tizen/extras/avplayVideoPlayer.js \
+            https://raw.githubusercontent.com/PatrickSt1991/tizen-jellyfin-avplay/main/extras/avplayVideoPlayer.js
+          BYTES=$(wc -c < tizen/extras/avplayVideoPlayer.js)
+          echo "fetched $BYTES bytes"
+          if [ "$BYTES" -lt 1000 ]; then
+            echo "::error::avplayVideoPlayer.js fetch returned only $BYTES bytes — looks like an error page, aborting"
+            head -5 tizen/extras/avplayVideoPlayer.js
+            exit 1
+          fi
           head -5 tizen/extras/avplayVideoPlayer.js
 
       # 8. Run our build (prepare + tizen build-web only — packaging is
