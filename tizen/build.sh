@@ -74,13 +74,51 @@ cp -r "$ROOT/dist/." "$BUILD_DIR/"
 # Wrapper + extras override anything with the same name (config.xml and
 # videoPlayer.html are the obvious cases — dist/ ships its own
 # video.js-based videoPlayer.html which we replace with the AVPlay one).
+# avplayVideoPlayer.js is intentionally NOT copied: we keep it in
+# extras/ as a reference, but our videoPlayer.html does direct
+# webapis.avplay calls so we never load it. Saves 25 KB in the .wgt.
 cp "$WRAPPER/config.xml"       "$BUILD_DIR/config.xml"
 cp "$WRAPPER/icon.png"         "$BUILD_DIR/icon.png"
 cp "$WRAPPER/videoPlayer.html" "$BUILD_DIR/videoPlayer.html"
-cp "$EXTRAS/tizen-bootstrap.js"   "$BUILD_DIR/tizen-bootstrap.js"
-cp "$EXTRAS/tizen-sw.js"          "$BUILD_DIR/tizen-sw.js"
-cp "$EXTRAS/tizen.css"            "$BUILD_DIR/tizen.css"
-cp "$EXTRAS/avplayVideoPlayer.js" "$BUILD_DIR/avplayVideoPlayer.js"
+cp "$EXTRAS/tizen-bootstrap.js" "$BUILD_DIR/tizen-bootstrap.js"
+cp "$EXTRAS/tizen-sw.js"        "$BUILD_DIR/tizen-sw.js"
+cp "$EXTRAS/tizen.css"          "$BUILD_DIR/tizen.css"
+
+# --- Strip dead weight from dist/ that the TV never uses --------------------
+#
+# Chorus2's dist/ targets a desktop browser. On a Tizen TV the .wgt
+# unpacks to roughly 10 MB but ~5 MB of that is never loaded at runtime.
+# The user's TV hit `download failed[116]` (insufficient storage) on
+# install, so we trim everything that isn't reached at runtime.
+#
+# What's safe to remove:
+#   - screenshots/                 — Chorus2's promo screenshots
+#   - lib/video-js/                — replaced by our AVPlay videoPlayer.html
+#   - themes/.../fonts/*.svg|.eot  — SVG-font + IE6 fallback formats; the
+#                                    TV WebKit uses woff/woff2
+#   - lang/<non-en>/               — keep only English; user can swap to
+#                                    other languages by rebuilding
+#   - addon.xml, manifest.json,
+#     favicon.png, icon-NNN.png    — Kodi-addon / PWA / browser metadata
+#                                    that Tizen ignores
+
+log "trimming dist/ dead weight"
+rm -rf "$BUILD_DIR/screenshots"
+rm -rf "$BUILD_DIR/lib/video-js"
+find "$BUILD_DIR/themes" -type f \( -name '*.svg' -o -name '*.eot' \) -delete 2>/dev/null || true
+# Language files: keep _strings (registry) + en, drop the rest.
+for d in "$BUILD_DIR/lang/"*/; do
+    name=$(basename "$d")
+    [[ "$name" == "_strings" || "$name" == "en" ]] && continue
+    rm -rf "$d"
+done
+rm -f "$BUILD_DIR/addon.xml" \
+      "$BUILD_DIR/manifest.json" \
+      "$BUILD_DIR/favicon.png" \
+      "$BUILD_DIR/icon-128.png" \
+      "$BUILD_DIR/icon-144.png" \
+      "$BUILD_DIR/icon-152.png" \
+      "$BUILD_DIR/icon-192.png"
 
 # --- Patch index.html --------------------------------------------------------
 
