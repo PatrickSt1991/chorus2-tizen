@@ -43,31 +43,13 @@
   // turns the post-submit Chorus2 loading-screen hang into an actionable
   // diagnostic when host/auth is wrong.
   function showSetupScreen(existing) {
-    // Chorus2's base.css sets body{display:table-cell;padding:15px} which
-    // breaks our centred layout (no horizontal space left for `margin:auto`
-    // to distribute). It also styles #loading-page and various other
-    // elements. Disable it entirely while the setup screen is up — the
-    // page reloads after submit so the stylesheet comes back online for
-    // Chorus2 to use.
-    var links = document.querySelectorAll('link[rel="stylesheet"]');
-    for (var i = 0; i < links.length; i++) {
-      var href = links[i].getAttribute('href') || '';
-      if (href.indexOf('themes/') >= 0 || href.indexOf('base.css') >= 0) {
-        links[i].disabled = true;
-      }
-    }
-
     document.documentElement.style.cssText =
-      'background:#0a0e13;' +
       'background:#0a0e13 radial-gradient(ellipse at top, #1a2336 0%, #0a0e13 60%);';
     document.body.innerHTML = '';
     document.body.style.cssText =
       'margin:0;padding:0;color:#f0f4fa;' +
       'font:20px system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;' +
-      'min-height:100vh;background:transparent;' +
-      // Override base.css `body{display:table-cell;padding:15px}` which
-      // collapses the body to its content width and breaks `margin:auto`.
-      'display:block;width:100%;box-sizing:border-box;';
+      'min-height:100vh;background:transparent;';
 
     var wrap = document.createElement('div');
     wrap.style.cssText =
@@ -592,32 +574,19 @@
     return out;
   }
 
-  // moveFocus(dir, opts):
-  //   opts.fromRect — optional source rect to search from. If omitted, we
-  //     use the active element's rect. Used by handleArrow after blurring
-  //     an input so we still navigate relative to where the input was.
-  //   opts.exclude — element to exclude from candidates. So we don't
-  //     jump back to the same input the user is trying to escape.
-  function moveFocus(dir, opts) {
-    opts = opts || {};
+  function moveFocus(dir) {
     var current = document.activeElement;
     var all = getFocusables();
     if (all.length === 0) return false;
 
-    var srcRect;
-    if (opts.fromRect) {
-      srcRect = opts.fromRect;
-    } else if (current && current !== document.body && all.indexOf(current) >= 0) {
-      srcRect = current.getBoundingClientRect();
-    } else {
-      // No tracked focus and no fromRect — pick the first focusable.
-      var seed = all[0];
-      if (opts.exclude && seed === opts.exclude && all.length > 1) seed = all[1];
-      seed.focus();
-      scrollIntoViewSafe(seed);
+    if (!current || current === document.body || all.indexOf(current) < 0) {
+      // No tracked focus — start at the first visible focusable.
+      all[0].focus();
+      scrollIntoViewSafe(all[0]);
       return true;
     }
 
+    var srcRect = current.getBoundingClientRect();
     var srcCx = (srcRect.left + srcRect.right) / 2;
     var srcCy = (srcRect.top + srcRect.bottom) / 2;
 
@@ -626,7 +595,7 @@
 
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
-      if (el === current || el === opts.exclude) continue;
+      if (el === current) continue;
       var r = el.getBoundingClientRect();
       var cx = (r.left + r.right) / 2;
       var cy = (r.top + r.bottom) / 2;
@@ -693,32 +662,14 @@
   function handleArrow(e, dir) {
     e.preventDefault();
     e.stopImmediatePropagation();
-
-    var active = document.activeElement;
-    var isInput = active &&
-                  (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-
-    // First try with the active element (or body) as source.
     if (moveFocus(dir)) return;
-
-    // No candidate in that direction. If we were in an input (search
-    // bar at the page edge is the common case), blur it and try again
-    // anchored at where the input was, excluding the input itself so
-    // we don't loop back to it.
-    if (isInput) {
-      var rect = active.getBoundingClientRect();
+    // No candidate in the requested direction. If focus is in a text
+    // input, blur it and try once more from the body — covers the case
+    // where the search bar is at the page edge with nothing beyond.
+    var active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
       active.blur();
-      if (moveFocus(dir, { fromRect: rect, exclude: active })) return;
-
-      // Still nothing in the requested direction — fall back to first
-      // focusable that isn't the input we're escaping.
-      var all = getFocusables();
-      for (var i = 0; i < all.length; i++) {
-        if (all[i] === active) continue;
-        all[i].focus();
-        scrollIntoViewSafe(all[i]);
-        return;
-      }
+      moveFocus(dir);
     }
   }
 
