@@ -38,34 +38,63 @@
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  // Setup form rendered when no config is stored. Plain DOM, large text +
-  // visible focus rings so it works with the TV remote out of the box.
+  // Setup form rendered when no config is stored. The submit handler runs
+  // a JSONRPC.Ping pre-flight against the entered server before saving —
+  // turns the post-submit Chorus2 loading-screen hang into an actionable
+  // diagnostic when host/auth is wrong.
   function showSetupScreen(existing) {
-    document.documentElement.style.background = '#101418';
+    document.documentElement.style.background = '#0a0e13';
     document.body.innerHTML = '';
     document.body.style.cssText =
-      'margin:0;padding:0;background:#101418;color:#e6e6e6;' +
-      'font:18px system-ui,Arial,sans-serif;min-height:100vh;';
+      'margin:0;padding:0;background:#0a0e13;color:#f0f4fa;' +
+      'font:18px system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;' +
+      'min-height:100vh;';
 
     var wrap = document.createElement('div');
     wrap.style.cssText =
-      'max-width:560px;margin:6vh auto;padding:32px 40px;' +
-      'background:#1a1f24;border-radius:10px;box-shadow:0 2px 24px rgba(0,0,0,.4);';
+      'max-width:620px;margin:5vh auto;padding:40px 48px 32px;' +
+      'background:#161c28;border:1px solid #232c3d;border-radius:12px;' +
+      'box-shadow:0 8px 32px rgba(0,0,0,.5);';
 
     wrap.innerHTML =
-      '<h1 style="margin:0 0 8px;font-size:28px;font-weight:600">Chorus2 for Tizen</h1>' +
-      '<p style="margin:0 0 24px;color:#9aa4ae">Connect to your Kodi server.</p>' +
-      '<form id="tz-setup">' +
-      field('host', 'Kodi host or IP', existing && existing.host || '', 'text', 'e.g. 192.168.1.50') +
-      field('port', 'HTTP port', existing && existing.port || '8080', 'number', '8080') +
-      field('username', 'Username', existing && existing.username || 'kodi', 'text', 'kodi') +
-      field('password', 'Password', existing && existing.password || '', 'password', '') +
-      '<div style="display:flex;gap:12px;margin-top:8px">' +
-        button('save', 'Save and connect', true) +
-        button('reset', 'Reset', false) +
+      // Header
+      '<div style="display:flex;align-items:center;gap:14px;margin:0 0 4px">' +
+        '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#4ea1ff,#2563eb);' +
+        'display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:20px">C2</div>' +
+        '<h1 style="margin:0;font-size:30px;font-weight:600;color:#f5f7fa;letter-spacing:-.01em">Chorus2 for Tizen</h1>' +
       '</div>' +
-      '<p id="tz-err" style="color:#ff6b6b;min-height:1.4em;margin:12px 0 0"></p>' +
-      '<p style="color:#7a8590;font-size:13px;margin:6px 0 0">Use ↑ / ↓ or OK to move between fields. Back exits.</p>' +
+      '<p style="margin:0 0 28px 54px;color:#a8b3c2;font-size:16px">Connect to your Kodi server.</p>' +
+      '<div style="height:1px;background:#232c3d;margin:0 0 28px"></div>' +
+
+      '<form id="tz-setup">' +
+        // Server section
+        section('Server') +
+        field('host',     'Kodi host or IP', existing && existing.host || '',          'text',   'e.g. 192.168.1.50') +
+        field('port',     'HTTP port',       existing && existing.port || '8080',      'number', '8080') +
+
+        // Auth section
+        section('Authentication', '28px') +
+        field('username', 'Username',        existing && existing.username || 'kodi', 'text',     'kodi') +
+        field('password', 'Password',        existing && existing.password || '',     'password', '········') +
+
+        // Actions
+        '<div style="display:flex;gap:12px;margin-top:24px">' +
+          button('save',  'Connect', true) +
+          button('reset', 'Reset',   false) +
+        '</div>' +
+
+        // Status line
+        '<div id="tz-status" style="margin:18px 0 0;padding:14px 16px;' +
+            'background:#0d1218;border:1px solid #232c3d;border-radius:8px;' +
+            'color:#a8b3c2;font-size:15px;min-height:1.3em;display:flex;align-items:center;gap:10px">' +
+          '<span id="tz-status-dot" style="width:8px;height:8px;border-radius:50%;background:#4a5566;flex:none"></span>' +
+          '<span id="tz-status-text">Ready. Enter your Kodi details and press Connect.</span>' +
+        '</div>' +
+
+        // Hint
+        '<p style="color:#7a8694;font-size:13px;margin:14px 0 0">' +
+          'Use ↑ / ↓ or OK to move between fields. Back exits.' +
+        '</p>' +
       '</form>';
     document.body.appendChild(wrap);
 
@@ -87,37 +116,22 @@
       if (list[next].select) try { list[next].select(); } catch (_) {}
     }
 
-    // Arrow keys inside a text input do cursor movement by default, so the
-    // remote can't escape the field. Intercept Up/Down for focus, leave
-    // Left/Right alone so the user can still edit characters mid-string.
-    // Enter on the last input or on a button does its native action; on
-    // any earlier input it advances focus instead of submitting the form.
     form.addEventListener('keydown', function (e) {
       var list = focusables();
       var idx = list.indexOf(document.activeElement);
       var isInput = document.activeElement &&
                     document.activeElement.tagName === 'INPUT';
       switch (e.keyCode) {
-        case 38: // ArrowUp
-          shiftFocus(-1);
-          e.preventDefault();
-          break;
-        case 40: // ArrowDown
-          shiftFocus(+1);
-          e.preventDefault();
-          break;
-        case 13: // OK / Enter
-          // Advance focus when in an early input. From the password field
-          // (idx 3) or the buttons, fall through to browser default —
-          // password Enter submits the form, button Enter activates it.
+        case 38: shiftFocus(-1); e.preventDefault(); break; // Up
+        case 40: shiftFocus(+1); e.preventDefault(); break; // Down
+        case 13: // OK / Enter — advance from early input, fall through on password/buttons
           if (isInput && idx < list.length - 3) {
             shiftFocus(+1);
             e.preventDefault();
           }
           break;
-        case 10009: // Tizen Back / Return
-          try { tizen.application.getCurrentApplication().exit(); }
-          catch (_) { /* not in Tizen WebView */ }
+        case 10009: // Tizen Back
+          try { tizen.application.getCurrentApplication().exit(); } catch (_) {}
           e.preventDefault();
           break;
       }
@@ -125,19 +139,13 @@
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var cfg = {
-        host: form.host.value.trim(),
-        port: form.port.value.trim() || '8080',
-        username: form.username.value,
-        password: form.password.value
-      };
+      var cfg = readForm(form);
       if (!cfg.host) {
-        document.getElementById('tz-err').textContent = 'Host is required.';
+        setStatus('error', 'Host is required.');
         form.host.focus();
         return;
       }
-      saveConfig(cfg);
-      location.reload();
+      runConnectionTest(cfg);
     });
 
     document.getElementById('tz-reset').addEventListener('click', function (e) {
@@ -145,34 +153,148 @@
       clearConfig();
       location.reload();
     });
+
+    // Pre-flight: ping Kodi's JSON-RPC with the entered creds. Five-second
+    // timeout. On success, save + reload (Chorus2 boots with verified
+    // creds). On failure, show what specifically went wrong.
+    function runConnectionTest(cfg) {
+      setBusy(true);
+      setStatus('busy', 'Connecting to ' + cfg.host + ':' + cfg.port + '…');
+
+      var url = 'http://' + cfg.host + ':' + cfg.port + '/jsonrpc';
+      var ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+      var timeoutId = setTimeout(function () {
+        if (ctrl) ctrl.abort();
+      }, 5000);
+
+      // Use the original XHR via fetch directly — the patches haven't
+      // been installed yet (we're in the no-config branch), so this hits
+      // Kodi exactly the way a vanilla fetch would.
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Basic ' + btoa(cfg.username + ':' + cfg.password)
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'JSONRPC.Ping', id: 1 }),
+        signal: ctrl ? ctrl.signal : undefined
+      }).then(function (res) {
+        clearTimeout(timeoutId);
+        if (res.status === 200) {
+          return res.json().then(function (body) {
+            if (body && body.result === 'pong') {
+              setStatus('ok', 'Connected. Loading Chorus2…');
+              saveConfig(cfg);
+              setTimeout(function () { location.reload(); }, 350);
+            } else {
+              setBusy(false);
+              setStatus('error', 'Reached the server, but it does not look like Kodi (no pong).');
+            }
+          }, function () {
+            setBusy(false);
+            setStatus('error', 'Reached the server, but it returned a non-JSON response.');
+          });
+        }
+        setBusy(false);
+        if (res.status === 401) {
+          setStatus('error', 'Authentication failed (401). Check the username and password.');
+          form.username.focus();
+        } else if (res.status === 403) {
+          setStatus('error', 'Forbidden (403). Enable "Allow remote control via HTTP" in Kodi.');
+        } else if (res.status === 404) {
+          setStatus('error', 'Got 404 from /jsonrpc. Is this really a Kodi web server?');
+        } else {
+          setStatus('error', 'HTTP ' + res.status + ' from Kodi.');
+        }
+      }).catch(function (err) {
+        clearTimeout(timeoutId);
+        setBusy(false);
+        var msg = String(err && err.message || err);
+        if (msg.indexOf('aborted') >= 0 || msg.indexOf('timeout') >= 0) {
+          setStatus('error', 'Timed out after 5s. Is the host reachable and Kodi running?');
+        } else {
+          setStatus('error', 'Network error: ' + msg);
+        }
+      });
+    }
+
+    function setBusy(busy) {
+      var btn = document.getElementById('tz-save');
+      btn.disabled = busy;
+      btn.style.opacity = busy ? '.6' : '1';
+      btn.textContent = busy ? 'Connecting…' : 'Connect';
+    }
+
+    function setStatus(kind, msg) {
+      var colors = { busy: '#4ea1ff', ok: '#4ade80', error: '#ff8080', idle: '#4a5566' };
+      var textColors = { busy: '#a8b3c2', ok: '#bbf7d0', error: '#ffd0d0', idle: '#a8b3c2' };
+      document.getElementById('tz-status-dot').style.background = colors[kind] || colors.idle;
+      var t = document.getElementById('tz-status-text');
+      t.textContent = msg;
+      t.style.color = textColors[kind] || textColors.idle;
+    }
+  }
+
+  function readForm(form) {
+    return {
+      host: form.host.value.trim(),
+      port: form.port.value.trim() || '8080',
+      username: form.username.value,
+      password: form.password.value
+    };
+  }
+
+  function section(title, topMargin) {
+    return (
+      '<div style="margin:' + (topMargin || '0') + ' 0 14px;font-size:12px;' +
+      'letter-spacing:.12em;text-transform:uppercase;color:#7a8694;font-weight:600">' +
+      title + '</div>'
+    );
   }
 
   function field(name, label, value, type, placeholder) {
     var v = String(value).replace(/"/g, '&quot;');
     var p = String(placeholder).replace(/"/g, '&quot;');
     return (
-      '<label style="display:block;margin:0 0 18px">' +
-        '<span style="display:block;margin:0 0 6px;color:#9aa4ae;font-size:14px">' + label + '</span>' +
+      '<label style="display:block;margin:0 0 16px">' +
+        '<span style="display:block;margin:0 0 7px;color:#d0d8e3;font-size:14px;font-weight:500">' + label + '</span>' +
         '<input name="' + name + '" type="' + type + '" value="' + v + '" placeholder="' + p + '" ' +
-        'style="width:100%;box-sizing:border-box;padding:12px 14px;font-size:18px;' +
-        'background:#0d1115;border:2px solid #2a323a;border-radius:6px;color:#e6e6e6;outline:none">' +
+        'autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" ' +
+        'style="width:100%;box-sizing:border-box;padding:13px 16px;font-size:18px;' +
+        'background:#0d1218;border:2px solid #2a3242;border-radius:8px;color:#f5f7fa;' +
+        'outline:none;font-family:inherit">' +
       '</label>'
     );
   }
 
   function button(id, label, primary) {
-    var bg = primary ? '#2e7dd7' : '#2a323a';
+    var bg, color, border;
+    if (primary) {
+      bg = 'linear-gradient(180deg,#4ea1ff 0%,#2e7dd7 100%)';
+      color = '#fff';
+      border = '#2e7dd7';
+    } else {
+      bg = '#1f2837';
+      color = '#d0d8e3';
+      border = '#2a3242';
+    }
     return (
       '<button id="tz-' + id + '" type="' + (primary ? 'submit' : 'button') + '" ' +
-      'style="padding:12px 20px;font-size:16px;border:0;border-radius:6px;cursor:pointer;' +
-      'background:' + bg + ';color:#fff">' + label + '</button>'
+      'style="padding:12px 26px;font-size:16px;font-weight:600;border:1px solid ' + border + ';' +
+      'border-radius:8px;cursor:pointer;background:' + bg + ';color:' + color + ';' +
+      'font-family:inherit">' + label + '</button>'
     );
   }
 
   // Inject a focus-ring style early so the setup form is remote-navigable.
   (function injectFocusCss() {
     var s = document.createElement('style');
-    s.textContent = '#tz-setup input:focus,#tz-setup button:focus{outline:3px solid #6ab0ff;outline-offset:2px;border-color:#6ab0ff}';
+    s.textContent =
+      '#tz-setup input:focus,#tz-setup button:focus{' +
+        'outline:3px solid #4ea1ff;outline-offset:3px;border-color:#4ea1ff' +
+      '}' +
+      '#tz-setup input::placeholder{color:#56627a}' +
+      '#tz-setup button[disabled]{cursor:default}';
     document.head.appendChild(s);
   })();
 
