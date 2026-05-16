@@ -290,8 +290,97 @@
   // wired in Phase 3 (AVPlay swap touches Api.Files::downloadPath and
   // document.createElement('video')). Phase 1/2 leave them alone.
 
-  // Headless mode: stop here. videoPlayer.html drives AVPlay itself.
+  // Headless mode: stop here. videoPlayer.html drives AVPlay itself,
+  // including its own remote-key handling.
   if (SKIP_INDEX_BOOT) return;
+
+  // --- TV remote keys (Phase 4) -----------------------------------------
+  // Samsung TVs deliver media + back/exit keys only after the app
+  // explicitly registers for them. Arrow keys + OK are delivered
+  // unconditionally and handled by the spatial-navigation focus model
+  // — for that to work, focusable elements need tabindex. Chorus2 uses
+  // <a href> heavily (focusable already); the .control-* divs in the
+  // player bar are the main exceptions and we fix those below.
+
+  function registerTVKeys() {
+    if (typeof tizen === 'undefined' || !tizen.tvinputdevice) return;
+    var keys = [
+      'MediaPlay', 'MediaPause', 'MediaPlayPause', 'MediaStop',
+      'MediaFastForward', 'MediaRewind',
+      'MediaTrackPrevious', 'MediaTrackNext'
+    ];
+    keys.forEach(function (k) {
+      try { tizen.tvinputdevice.registerKey(k); }
+      catch (e) { /* unsupported key on this firmware; ignore */ }
+    });
+  }
+  registerTVKeys();
+
+  function clickIfFound(selector) {
+    var el = document.querySelector(selector);
+    if (el) { el.click(); return true; }
+    return false;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    switch (e.keyCode) {
+      case 10009: // Tizen Back / Return
+        // Prefer hash-based back navigation (Chorus2 uses hash routing).
+        if (location.hash && location.hash !== '#' && location.hash !== '#home') {
+          history.back();
+          e.preventDefault();
+        } else {
+          try {
+            tizen.application.getCurrentApplication().exit();
+          } catch (_) { /* not in Tizen WebView; ignore */ }
+        }
+        break;
+      case 415:   // Tizen Play
+      case 19:    // Tizen Pause
+      case 10252: // Tizen PlayPause
+        if (clickIfFound('.control-play')) e.preventDefault();
+        break;
+      case 413:   // Tizen Stop — Chorus2 has no Stop button; map to play
+                  // (acts as pause if currently playing).
+        if (clickIfFound('.control-play')) e.preventDefault();
+        break;
+      case 10232: // Tizen TrackPrevious
+        if (clickIfFound('.control-prev')) e.preventDefault();
+        break;
+      case 10233: // Tizen TrackNext
+        if (clickIfFound('.control-next')) e.preventDefault();
+        break;
+      // FastForward (417) / Rewind (412): no scrubbing UI in Chorus2's
+      // remote-control mode (Kodi handles seek server-side via its own
+      // remote view). Leave unbound for now.
+    }
+  });
+
+  // Drop tabindex=0 onto the player controls so spatial navigation picks
+  // them up. Re-runs on Marionette re-renders via MutationObserver.
+  function applyFocusableTabindex(root) {
+    var nodes = (root || document).querySelectorAll(
+      '.control:not([tabindex]), .player-button:not([tabindex])'
+    );
+    for (var i = 0; i < nodes.length; i++) nodes[i].tabIndex = 0;
+  }
+  function watchForControls() {
+    applyFocusableTabindex(document);
+    var obs = new MutationObserver(function (muts) {
+      for (var i = 0; i < muts.length; i++) {
+        var added = muts[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          if (added[j].nodeType === 1) applyFocusableTabindex(added[j]);
+        }
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', watchForControls);
+  } else {
+    watchForControls();
+  }
 
   // All patches are in place. Load Chorus2.
   if (document.readyState === 'loading') {
