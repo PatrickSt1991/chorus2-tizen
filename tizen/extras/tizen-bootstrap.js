@@ -123,6 +123,16 @@
     document.head.appendChild(s);
   })();
 
+  // Chorus2's bundle is NOT in <script> tags in our packaged index.html
+  // (build.sh strips it). The bootstrap loads it dynamically only when
+  // config is present, so the setup screen never has to compete with
+  // Chorus2's own DOM mutations on first launch.
+  function loadChorus2() {
+    var s = document.createElement('script');
+    s.src = 'js/kodi-webinterface.js';
+    document.body.appendChild(s);
+  }
+
   var cfg = loadConfig();
   if (!cfg || !cfg.host) {
     // Defer until DOM is ready so document.body exists.
@@ -133,13 +143,7 @@
     } else {
       showSetupScreen(cfg);
     }
-    // Halt — do not let Chorus2 boot until configured.
-    // Prevent later scripts from running by replacing them with no-ops.
-    // (Chorus2's bundle is loaded via a later <script> tag; setting
-    //  document.write to no-op and stopping further execution is enough,
-    //  because index.html runs scripts sequentially.)
-    window.stop && window.stop();
-    throw new Error('[tizen-bootstrap] no config yet — halting boot to show setup screen');
+    return; // Chorus2 does not load until the user provides config.
   }
 
   // --- Config is present: wire everything up before Chorus2 loads. ---
@@ -270,5 +274,12 @@
 
   // Late patches that depend on Chorus2's globals being available are
   // wired in Phase 3 (AVPlay swap touches Api.Files::downloadPath and
-  // document.createElement('video')). Phase 1 leaves them alone.
+  // document.createElement('video')). Phase 1/2 leave them alone.
+
+  // All patches are in place. Load Chorus2.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadChorus2);
+  } else {
+    loadChorus2();
+  }
 })();

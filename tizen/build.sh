@@ -1,7 +1,140 @@
 #!/usr/bin/env bash
-# Placeholder. Real build script in Phase 2 (section 7 of chorus2-tizen-build-plan.md).
-# Will: copy dist/ -> build/, copy wrapper + extras, sed-inject script tags into index.html,
-# run `tizen build-web` and `tizen package`, move .wgt to release/.
+#
+# tizen/build.sh — Build the Chorus2 Tizen .wgt package.
+#
+# Pipeline (mirrors §7 of chorus2-tizen-build-plan.md):
+#   1. Copy upstream dist/ into build/
+#   2. Drop in our wrapper (config.xml, icon.png) and extras
+#      (tizen-bootstrap.js, tizen-sw.js, tizen.css, avplayVideoPlayer.js)
+#   3. Inject our <link>/<script> into <head> of index.html and remove
+#      Chorus2's <script src="js/kodi-webinterface.js"> (the bootstrap
+#      loads it dynamically once config is present — see the first-launch
+#      note in tizen-bootstrap.js).
+#   4. Resize icon to 117x117 if ImageMagick is available.
+#   5. Run `tizen build-web` + `tizen package -t wgt`.
+#   6. Move .wgt to release/.
+#
+# Env vars:
+#   TIZEN_BIN     Path to the tizen CLI. Defaults to ~/tizen-studio/tools/ide/bin/tizen.
+#   TIZEN_PROFILE Tizen signing profile name. Defaults to "Chorus2".
+#
+# To run only the prepare steps (no tizen CLI required) — for dry-run /
+# layout validation — pass --dry-run as the first argument.
+
 set -euo pipefail
-echo "tizen/build.sh: not yet implemented (Phase 2)" >&2
-exit 1
+
+DRY_RUN=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+    DRY_RUN=1
+fi
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD_DIR="$ROOT/build"
+WRAPPER="$ROOT/tizen/wrapper"
+EXTRAS="$ROOT/tizen/extras"
+RELEASE_DIR="$ROOT/release"
+
+TIZEN_BIN="${TIZEN_BIN:-$HOME/tizen-studio/tools/ide/bin/tizen}"
+PROFILE_NAME="${TIZEN_PROFILE:-Chorus2}"
+
+log() { printf "\033[1;34m[build]\033[0m %s\n" "$*"; }
+warn() { printf "\033[1;33m[build]\033[0m %s\n" "$*" >&2; }
+fail() { printf "\033[1;31m[build]\033[0m %s\n" "$*" >&2; exit 1; }
+
+# --- Sanity checks on inputs -------------------------------------------------
+
+[[ -f "$ROOT/dist/index.html" ]] || fail "dist/index.html missing — is this the chorus2 repo root?"
+[[ -f "$WRAPPER/config.xml"   ]] || fail "wrapper/config.xml missing"
+[[ -f "$WRAPPER/icon.png"     ]] || fail "wrapper/icon.png missing"
+[[ -f "$EXTRAS/tizen-bootstrap.js" ]] || fail "extras/tizen-bootstrap.js missing"
+[[ -f "$EXTRAS/tizen-sw.js"        ]] || fail "extras/tizen-sw.js missing"
+[[ -f "$EXTRAS/tizen.css"          ]] || fail "extras/tizen.css missing"
+[[ -f "$EXTRAS/avplayVideoPlayer.js" ]] || fail "extras/avplayVideoPlayer.js missing"
+
+# --- Prepare build directory -------------------------------------------------
+
+log "preparing $BUILD_DIR"
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
+
+# Copy Chorus2 prebuilt dist (including videoPlayer.html — Phase 3 patches it).
+cp -r "$ROOT/dist/." "$BUILD_DIR/"
+
+# Wrapper + extras override anything with the same name (config.xml is the
+# obvious case).
+cp "$WRAPPER/config.xml" "$BUILD_DIR/config.xml"
+cp "$WRAPPER/icon.png"   "$BUILD_DIR/icon.png"
+cp "$EXTRAS/tizen-bootstrap.js"   "$BUILD_DIR/tizen-bootstrap.js"
+cp "$EXTRAS/tizen-sw.js"          "$BUILD_DIR/tizen-sw.js"
+cp "$EXTRAS/tizen.css"            "$BUILD_DIR/tizen.css"
+cp "$EXTRAS/avplayVideoPlayer.js" "$BUILD_DIR/avplayVideoPlayer.js"
+
+# --- Patch index.html --------------------------------------------------------
+
+INDEX="$BUILD_DIR/index.html"
+
+# 1) Inject our CSS + bootstrap script as the first children of <head>. The
+#    bootstrap MUST run before any other Chorus2 script.
+INJECT='<link rel="stylesheet" href="tizen.css">\n<script src="tizen-bootstrap.js"></script>'
+# Match the literal <head> opening tag with optional whitespace; insert our
+# tags on the next line.
+sed -i "0,/<head>/{s|<head>|<head>\n${INJECT}|}" "$INDEX"
+
+# 2) Strip Chorus2's own kodi-webinterface.js <script>. The bootstrap loads
+#    it dynamically after config is verified, fixing the first-launch race
+#    (see tizen-bootstrap.js loadChorus2).
+sed -i '/<script[^>]*src=["'\'']js\/kodi-webinterface\.js["'\''][^>]*>[[:space:]]*<\/script>/d' "$INDEX"
+
+# Sanity: confirm both edits landed.
+grep -q "tizen-bootstrap.js" "$INDEX" || fail "bootstrap injection failed (no tizen-bootstrap.js in built index.html)"
+if grep -q 'src="js/kodi-webinterface.js"' "$INDEX"; then
+    fail "Chorus2 script tag removal failed (still present in built index.html)"
+fi
+
+# --- Resize icon to 117x117 if we have a tool that can do it ----------------
+
+if command -v convert >/dev/null 2>&1; then
+    log "resizing icon to 117x117 with ImageMagick"
+    convert "$BUILD_DIR/icon.png" -resize 117x117 "$BUILD_DIR/icon.png"
+elif command -v ffmpeg >/dev/null 2>&1; then
+    log "resizing icon to 117x117 with ffmpeg"
+    tmp="$BUILD_DIR/icon.tmp.png"
+    ffmpeg -y -i "$BUILD_DIR/icon.png" -vf scale=117:117 "$tmp" >/dev/null 2>&1
+    mv "$tmp" "$BUILD_DIR/icon.png"
+else
+    warn "no ImageMagick/ffmpeg found — shipping icon at its committed size; Tizen Studio will warn but accept"
+fi
+
+log "prepare complete: $(find "$BUILD_DIR" -type f | wc -l) files in $BUILD_DIR"
+
+# --- Dry run exits here ------------------------------------------------------
+
+if [[ $DRY_RUN -eq 1 ]]; then
+    log "--dry-run: skipping tizen CLI invocations"
+    exit 0
+fi
+
+# --- Build + package via Tizen Studio CLI -----------------------------------
+
+if [[ ! -x "$TIZEN_BIN" ]]; then
+    fail "Tizen CLI not found at $TIZEN_BIN.
+  Install Tizen Studio (https://docs.tizen.org/application/tizen-studio/) and either
+  put 'tizen' on PATH or set TIZEN_BIN to its absolute path.
+  (To validate the build layout without Tizen Studio, run: bash tizen/build.sh --dry-run)"
+fi
+
+cd "$BUILD_DIR"
+log "tizen build-web"
+"$TIZEN_BIN" build-web -e ".*" -e "node_modules/*"
+
+log "tizen package (profile: $PROFILE_NAME)"
+"$TIZEN_BIN" package -t wgt -s "$PROFILE_NAME" -- "$BUILD_DIR/.buildResult"
+
+# --- Move artifact -----------------------------------------------------------
+
+mkdir -p "$RELEASE_DIR"
+WGT="$(find "$BUILD_DIR/.buildResult" -maxdepth 1 -name '*.wgt' -print -quit)"
+[[ -n "$WGT" ]] || fail "tizen package did not produce a .wgt under $BUILD_DIR/.buildResult"
+mv "$WGT" "$RELEASE_DIR/Chorus2-Tizen.wgt"
+
+log "built: $RELEASE_DIR/Chorus2-Tizen.wgt"

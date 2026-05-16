@@ -10,3 +10,8 @@ dist/js/build/*
 *.mo
 .vscode
 webinterface.default*.zip
+
+# Tizen build artifacts
+/build/
+/release/
+.vs/

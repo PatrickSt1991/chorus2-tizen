@@ -1,1 +1,43 @@
-<!-- Placeholder. Real config.xml is written in Phase 2 (section 7 of chorus2-tizen-build-plan.md). -->
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://chorus2.tizen/chorus2"
+        version="1.0.0"
+        viewmodes="maximized">
+
+    <tizen:application id="chorus2tzn.Chorus2"
+                       package="chorus2tzn"
+                       required_version="4.0"/>
+
+    <content src="index.html"/>
+
+    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+
+    <icon src="icon.png"/>
+    <name>Chorus2</name>
+
+    <tizen:profile name="tv-samsung"/>
+
+    <!-- Privileges -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/download"/>
+    <tizen:privilege name="http://tizen.org/privilege/mediastorage"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/productinfo"/>
+
+    <!-- Network access whitelist. "*" is permissive but pragmatic: the
+         user configures their Kodi host at runtime, so we can't pin it
+         at build time. Tightening means rebuilding when Kodi moves. -->
+    <access origin="*" subdomains="true"/>
+
+    <!-- Allow navigation to any URL (covers HTTP Kodi over LAN). -->
+    <tizen:allow-navigation>*</tizen:allow-navigation>
+
+    <tizen:setting screen-orientation="landscape"
+                   context-menu="disable"
+                   background-support="enable"
+                   encryption="disable"
+                   hwkey-event="enable"
+                   background-vibration="disable"/>
+
+</widget>
