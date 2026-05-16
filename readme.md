@@ -1,147 +1,208 @@
-# Kodi Web Interface - Chorus2
-The default Web Interface for Kodi.
+# Chorus2 for Samsung Tizen TV
 
-A great modern Web UI for Kodi. Browse your Music, Movies or TV Shows from the comfort of your
-own web browser. You can play media via Kodi or stream it in your browser. Works best with Chrome
-but plays well with most modern browsers.
+[![Build Chorus2 Tizen](https://github.com/PatrickSt1991/chorus2-tizen/actions/workflows/build-tizen.yml/badge.svg?branch=tizen)](https://github.com/PatrickSt1991/chorus2-tizen/actions/workflows/build-tizen.yml)
+[![Latest release](https://img.shields.io/github/v/release/PatrickSt1991/chorus2-tizen?include_prereleases&label=release)](https://github.com/PatrickSt1991/chorus2-tizen/releases)
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
 
-Successor to [Chorus](https://github.com/jez500/chorus).
-A complete rebuild using Coffee Script, Backbone, Marionette and much, much more.
+Wraps the [Chorus2](https://github.com/xbmc/chorus2) Kodi web interface in a
+Samsung Tizen `.wgt` and swaps the HTML5 `<video>` element for **Tizen
+AVPlay**, so video playback gets hardware decoding (HEVC, AC3, etc.) on the
+TV's native pipeline instead of being limited by the WebView.
 
+The app talks JSON-RPC to a Kodi instance on your LAN and gives you a
+native-feeling TV client for browsing and controlling your library.
 
-## Author
-[Jeremy Graham ](http://jez.me) with help from [these kind people](https://github.com/xbmc/chorus2/graphs/contributors)
+> **This is not a port of Kodi.** It's a remote/streaming client that
+> packages Chorus2 as a TV app. See [What works](#what-works) below for the
+> capability ceiling.
 
+---
 
-## Current state
-Pretty good, most things work really well. Other things need [polish/finishing/fixing](https://github.com/xbmc/chorus2/issues).
-Still considered beta software, expect bugs, changes, nuclear war, etc.
+## Install
 
-## Getting it working
-As of Kodi v17, Chorus2 comes pre-installed out of the box, you just need to enable it and tick a few boxes.
+1. **Download the latest `.wgt`** from the
+   [Releases page](https://github.com/PatrickSt1991/chorus2-tizen/releases).
+   Each push to the `tizen` branch produces a signed prerelease build.
 
-### Enabling & Configuring
-Kodi > Settings (cog) > Services > Control
+2. **Enable Developer Mode** on your Samsung TV
+   ([Samsung's instructions](https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/tv-device.html))
+   and put your dev-machine's IP into the TV's "Host PC IP" field.
 
-* Enable "Allow control of Kodi via HTTP"
-* Select Web interface
-* Select "Kodi web interface - Chorus2"
-* Enable "Allow programs on this system to control Kodi"
-* Enable "Allow programs on other systems to control Kodi"
+3. **Sideload the `.wgt`**. Either:
 
-**For security reasons you should set a username and password to prevent unauthorized access**
+   - via Tizen Studio's Device Manager → Permit to install → Drag-drop the file, or
+   - from the command line:
+     ```bash
+     sdb connect <tv-ip>
+     sdb install Chorus2-Tizen.wgt
+     ```
 
-### Manual install
-For Kodi v16 and below or if you want to get the latest version ASAP, an install via zip is the easiest way to go. Grab the
-latest release of `webinterface.default.2.X.X.zip` from the [releases page](https://github.com/xbmc/chorus2/releases) then
-install it [like this](http://kodi.wiki/view/Add-on_manager#How_to_install_from_a_ZIP_file). **NOTE:** Chorus2 is intended to
-be used with the latest version of Kodi and some (or all) things might not work in older versions due to API changes.
+4. **Launch** the app on your TV. On first run you'll see a setup screen.
 
-### Using it
-Point your web browser to `http://localhost:8080` - replace `localhost` with your IP address if using remotely and if
-you have changed your port to something other than `8080` be sure to change that too. More information and advanced
-usage can be found over on the [Kodi Wiki page](http://kodi.wiki/view/Web_interface).
+5. **Enter your Kodi server details** — host/IP, port (default 8080),
+   username, password — and press **Connect**. The app pings Kodi with the
+   entered credentials and only proceeds if it gets a valid `pong` response,
+   so bad config is caught up-front rather than stalling the UI.
 
-## Feature requests / Bugs
-Add them to the [list](https://github.com/xbmc/chorus2/issues). For bugs please include Kodi version, Web browser version,
-Chorus version and any errors that display in the console. For feature requests, checkout the API browser to see if your
-request is currently possible.
+---
 
+## What works
 
-## Streaming
-Disclaimer: The success of this depends on the file formats vs what the browser supports.  In general most things work.
+- **Browse** your Kodi library — movies, TV shows, music, artists, albums
+- **Play direct files** from the library (music + video) — video goes through
+  Tizen AVPlay for hardware-accelerated decoding
+- **Remote-control** a running Kodi instance (Chorus2's "Kodi" mode)
+- **Settings, search, now-playing**
+- **TV remote**:
+  - Arrow keys + OK navigate (manual spatial navigation — Tizen 5 doesn't
+    ship one)
+  - Play / Pause / Track-prev / Track-next map to Chorus2's player controls
+  - Back exits the current view; from root, exits the app
+- **Authentication** via HTTP Basic — credentials are stored in
+  `localStorage` and injected into XHR/fetch/WebSocket and the AVPlay
+  streaming URL automatically
+- **Cross-origin images** — a Service Worker intercepts `<img>` and CSS
+  `url()` loads to Kodi and adds the auth header, since those don't go
+  through the XHR/fetch patches
 
-### Audio streaming
-In the top right there are some tabs, two of them are named Kodi and Local, this is how you toggle what player the UI
-is controlling.  In Local mode the logo and accents are pinky-red, In Kodi mode the logo is the Kodi blue. When you
-are in a given mode, actions affect that player, so if you click Play on a track when in Local mode, it will play
-through the browser, likewise, when in Kodi mode all commands are sent to Kodi.  You can also add media to other
-playlists by clicking the menu buttons (three dots vertical) on most media items.
+## What doesn't work
 
-### Video streaming
-Video streaming via HTML5 "sort of" works, it really depends on the codec used. An embedded VLC player is also available with better codec support.
-This looks like the best we can get until Kodi supports transcoding.
-**Chrome users**: Chrome has removed support for vlc/divx plugins so streaming a video requires a [Chrome friendly codec](https://en.wikipedia.org/wiki/HTML5_video#Browser_support).
-For best results use Chrome with mp4 video that has 2 channel audio (5.1 audio doesn't seem to work).
+These are structural limits of Kodi's architecture or the JSON-RPC API —
+they aren't fixable from a remote client. Use a different solution if you
+need any of them:
 
-## Kodi settings via the web interface
-You can change most of the settings you would find in Kodi via the settings page in the web interface.
-Some settings have been omitted as they require interaction with the GUI and others are just a basic text field with no options.
+- **Kodi addons** (`plugin://` URIs) — resolved server-side inside Kodi's
+  Python interpreter; no playable stream URL is ever exposed via JSON-RPC
+- **InputStream Adaptive** (DASH/HLS+DRM addons) — same reason
+- **PVR / Live TV** backends
+- **DRM-protected content**
+- **DLNA / casting** to other devices
 
-## Kodi API browser
-There is a hidden feature in Chorus that allows you to play with the Kodi API and see what is capable via the JSON-RPC
-interface. If you are building an app or addon that uses the API this can be super useful for both finding and testing
-all the methods and types available. If you are thinking about a new feature for Chorus, this is also a great place to
-test if it is possible (and fast track development by adding a working example to an issue). You can find the API browser
-via "Chorus Lab" (bottom right 3 vertical dots > "The Lab") or directly via `http://localhost:8080/#lab/api-browser`.
+If you need addons or PVR, look at running Jellyfin + the
+[jellyfin-tizen](https://github.com/jellyfin/jellyfin-tizen) client instead.
 
-## Contributing
-If you would like to make this project better I would appreciate any help. There is a develop branch for each version of
-Kodi. Please do pull requests against the `dev` branch for the correct version (even better if you can do a PR for both).
-Leia (v18) dev branch is `18.x-dev`, Krypton (v17) dev branch is `17.x-dev`. See the
-[developers documentation](https://github.com/xbmc/chorus2/tree/master/src/lang/en/developers.md) for information about
-getting a dev environment up and running then compiling the project using docker.
+---
 
-### Translations
-I only know English so definitely need help with this. I also don't know heaps about JavaScript multilingual stuff but
-thanks to [@mizaki](https://github.com/mizaki) we have a structure ready to go. So it should be nice and easy to translate the UI.
+## Requirements
 
-At the moment, there are [a handful](https://github.com/xbmc/chorus2/tree/master/src/lang/_strings) of languages available
-but more can be easily added. More strings are always being added so always consider english as the source of truth.
+- Samsung TV with **Tizen 4.0 or later** (roughly 2018 and newer)
+- A **Kodi v17+** server reachable on the same network as the TV
+- Kodi's web interface enabled, with:
+  - *Allow control of Kodi via HTTP* → on
+  - *Allow remote control from applications on other systems* → on
+  - HTTP Basic credentials configured (username + password)
 
-So if you see something in english but want it in your language, I need you! To contribute, send me a PR on a new branch
-against `18.x-dev` and/or `17.x-dev`, or if you don't know git, a link to the language file.
+---
 
-Language Files [here](https://github.com/xbmc/chorus2/tree/master/src/lang).
-*English is the only real complete translation file so start with that as your base.*
+## Build from source
 
-## Donate
-Are you a fan of Chorus? You can [buy Jeremy a beer](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=ZCGV976794JHE&lc=AU&item_name=Chorus%20Beer%20Fund&currency_code=AUD&bn=PP%2dDonationsBF%3abtn_donate_SM%2egif%3aNonHosted) to say thanks :)
+The whole build runs through `tizen/build.sh`. We do **not** rebuild
+Chorus2 itself from CoffeeScript source — we patch the prebuilt `dist/`
+that upstream ships, then run `tizen build-web` + `tizen package`.
+
+```bash
+git clone https://github.com/PatrickSt1991/chorus2-tizen.git
+cd chorus2-tizen
+
+# Smoke-test the prepare pipeline without installing Tizen Studio:
+bash tizen/build.sh --dry-run
+
+# Full build (needs Tizen Studio CLI on PATH or in $TIZEN_BIN):
+TIZEN_BIN=~/tizen-studio/tools/ide/bin/tizen \
+TIZEN_PROFILE=Chorus2 \
+  bash tizen/build.sh
+# → release/Chorus2-Tizen.wgt
+```
+
+`build.sh` flags:
+
+| Flag           | What it does                                                                   |
+| -------------- | ------------------------------------------------------------------------------ |
+| *(no flag)*    | Full pipeline: prepare + `tizen build-web` + `tizen package`                   |
+| `--dry-run`    | Just the prepare steps (copy + sed-inject + icon resize). No Tizen CLI needed. |
+| `--no-package` | Prepare + `tizen build-web`, but skip the interactive `tizen package`. CI use. |
+
+### CI
+
+`.github/workflows/build-tizen.yml` installs Tizen Studio 5.5 on
+`ubuntu-latest`, creates a self-signed `Chorus2` cert + security profile,
+runs `build.sh --no-package`, drives `tizen package` through an
+expect-script (the CLI prompts for cert passwords interactively), then
+uploads the signed `.wgt` as both a workflow artifact and a GitHub
+prerelease. Every push to `tizen` produces a fresh build.
+
+---
+
+## How it works
+
+The strategy is **"patch upstream's prebuilt `dist/`"** rather than
+rebuilding Chorus2 from source:
+
+```
+chorus2-tizen/
+├── dist/                            # upstream Chorus2 — DO NOT EDIT
+├── src/                             # upstream Chorus2 source — DO NOT EDIT
+├── tizen/
+│   ├── wrapper/
+│   │   ├── config.xml               # Tizen app manifest
+│   │   ├── icon.png                 # app icon (resized to 117×117 at build time)
+│   │   └── videoPlayer.html         # AVPlay-driven replacement for dist's
+│   ├── extras/
+│   │   ├── tizen-bootstrap.js       # patches: config + URL/auth/WebSocket
+│   │   ├── tizen-sw.js              # image-auth Service Worker
+│   │   ├── tizen.css                # AVPlay surface + TV focus styles
+│   │   └── avplayVideoPlayer.js     # AVPlay reference (from jellyfin-tizen)
+│   └── build.sh                     # prepare + tizen build-web + tizen package
+└── .github/workflows/
+    └── build-tizen.yml              # CI: produces a signed .wgt per push
+```
+
+At build time, `build.sh` copies `dist/*` into a build directory, layers
+our wrapper and extras on top (overwriting `config.xml`, `videoPlayer.html`,
+and the index entry point), sed-injects our bootstrap into `<head>`,
+strips Chorus2's own `<script>` tag, then runs the Tizen CLI to web-build
+and package.
+
+`tizen-bootstrap.js` is the integration point. It:
+
+- Shows a first-launch setup screen and pings Kodi with the entered creds
+  before saving anything
+- Patches `XMLHttpRequest`, `fetch`, and `WebSocket` so Chorus2's relative
+  URLs land on the configured Kodi host with HTTP Basic auth
+- Registers a Service Worker (`tizen-sw.js`) that catches `<img>` and CSS
+  `url()` loads (which bypass XHR/fetch) and adds the auth header
+- Registers Tizen media keys + implements spatial navigation for the
+  arrow keys (Tizen 5 doesn't provide one)
+- Dynamically loads `js/kodi-webinterface.js` only after config is verified
+
+`videoPlayer.html` (our replacement for the upstream video.js one) drives
+`webapis.avplay` directly: `open` → `setListener` → `SET_MODE_4K` →
+`prepareAsync` → `setDisplayMethod(LETTER_BOX)` → `play`. Basic Auth is
+embedded into the AVPlay URL as `http://user:pass@host:port/...` because
+AVPlay's `open()` only takes a URL.
+
+---
+
+## Branches
+
+- **`tizen`** — default branch. Everything in this README lives here.
+- **`master`** — upstream Chorus2 tracking branch, kept clean so we can
+  pull updates from
+  [`xbmc/chorus2`](https://github.com/xbmc/chorus2) cleanly.
+
+---
+
+## Acknowledgments
+
+- **[Chorus2](https://github.com/xbmc/chorus2)** by Jeremy Graham and the
+  Kodi contributors — the web interface this app wraps. GPL-2.0.
+- **[jellyfin-tizen](https://github.com/jellyfin/jellyfin-tizen)** — the
+  AVPlay shim was originally written there, and the
+  [`tizen-jellyfin-avplay`](https://github.com/PatrickSt1991/tizen-jellyfin-avplay)
+  build pipeline was the model for ours. GPL-2.0.
+- The Tizen Web Application docs and AVPlay API reference at
+  [docs.tizen.org](https://docs.tizen.org/).
 
 ## License
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-[along with this program](https://github.com/xbmc/chorus2/blob/master/LICENSE);
-if not, write to the Free Software Foundation, Inc., 51 Franklin Street,
-Fifth Floor, Boston, MA 02110-1301 USA.
-
-[Click here for more information ](https://github.com/xbmc/chorus2/blob/master/src/lang/en/license.md).
-
-
-## Screenshots
-
-### Homepage (now playing)
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/now-playing.jpg "Homepage/Now Playing")
-
-### Search results
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/search.jpg "Search")
-
-### Artists
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/artists.jpg "Artists")
-
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist//screenshots/artist.jpg "Artist")
-
-### Video library
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/tv.jpg "TV")
-
-### Filtering
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/movie.jpg "Movies")
-
-### Settings
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/settings.jpg "Settings")
-
-### Add-ons
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/addons.jpg "Add-ons")
-
-### Editing media
-![alt text](https://raw.githubusercontent.com/xbmc/chorus2/master/dist/screenshots/edit-media.jpg "Editing Media")
+GPL-2.0, inherited from Chorus2. See [LICENSE](LICENSE).
