@@ -1,2 +1,161 @@
-/* Placeholder. Real styles in Phase 3 (section 8.3.4 of chorus2-tizen-build-plan.md):
-   AVPlay transparent surface + TV-safe focus indicators. */
+/*
+ * tizen.css — Tizen-specific styling layered on top of Chorus2.
+ *
+ * Two concerns:
+ *   1. AVPlay surface. AVPlay renders video on a hardware overlay sitting
+ *      under the DOM. To position it we just need a transparent rectangle
+ *      whose getBoundingClientRect() coordinates we pass to setDisplayRect.
+ *   2. TV-remote focus. Chorus2 was built mouse-first; the default focus
+ *      outline is invisible on a 1080p TV from 3 metres away. Anything
+ *      focusable gets a high-contrast ring.
+ */
+
+/* --- AVPlay surface ------------------------------------------------------- */
+
+#tizen-avplay-surface {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 1;
+}
+
+/* When AVPlay is active, hide any HTML5 <video> elements Chorus2 may have
+   left in the DOM (the shipping videoPlayer.html builds one before our
+   replacement page loads). */
+body.tizen-avplay-active video {
+    display: none !important;
+}
+
+/* --- Setup screen + bootstrap UI ------------------------------------------ */
+/* The setup screen already inlines its own styles, but the focus rule below
+   applies to it too. */
+
+#tz-setup input:focus,
+#tz-setup button:focus {
+    outline: 3px solid #6ab0ff;
+    outline-offset: 2px;
+    border-color: #6ab0ff;
+}
+
+/* --- Global TV focus ------------------------------------------------------- */
+
+:focus,
+:focus-visible {
+    outline: 4px solid #2e7dd7;
+    outline-offset: 2px;
+}
+
+/* Many Chorus2 interactive elements are <div>/<li>/<a> with click handlers
+   but no native focus styling. The thick outline above is enough to find
+   focus during arrow navigation. */
+
+/* --- videoPlayer.html ----------------------------------------------------- */
+
+.tz-video-page {
+    margin: 0;
+    padding: 0;
+    background: #000;
+    color: #e6e6e6;
+    font: 18px system-ui, Arial, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.tz-video-page #tizen-avplay-surface {
+    /* The shim "video" lives here; AVPlay renders behind. */
+}
+
+.tz-video-controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 24px 40px 28px;
+    background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0));
+    transition: opacity .25s ease;
+    z-index: 10;
+}
+
+.tz-video-controls.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.tz-video-controls .row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.tz-video-controls button {
+    appearance: none;
+    border: 0;
+    background: rgba(255, 255, 255, .15);
+    color: #fff;
+    font-size: 16px;
+    padding: 10px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.tz-video-controls .progress {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, .2);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.tz-video-controls .progress > .fill {
+    height: 100%;
+    width: 0%;
+    background: #2e7dd7;
+    transition: width .25s linear;
+}
+
+.tz-video-controls .time {
+    font-variant-numeric: tabular-nums;
+    color: #cdd6e0;
+    font-size: 14px;
+    min-width: 5em;
+    text-align: right;
+}
+
+.tz-video-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cdd6e0;
+    font-size: 22px;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.tz-video-error {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #ff6b6b;
+    background: rgba(0,0,0,.85);
+    padding: 40px;
+    text-align: center;
+    z-index: 20;
+}
+
+.tz-video-error h2 {
+    margin: 0 0 12px;
+    color: #fff;
+}
+
+.tz-video-error p {
+    margin: 0 0 8px;
+    color: #cdd6e0;
+    font-size: 16px;
+    max-width: 720px;
+}

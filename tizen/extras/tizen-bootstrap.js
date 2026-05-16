@@ -133,8 +133,22 @@
     document.body.appendChild(s);
   }
 
+  // Headless mode: secondary pages (currently just videoPlayer.html) set
+  // window.TIZEN_SKIP_INDEX_BOOT = true before loading this script. In
+  // that mode we wire up the patches + URL helpers but skip the setup
+  // screen and the dynamic Chorus2 load — those only belong on index.html.
+  var SKIP_INDEX_BOOT = !!window.TIZEN_SKIP_INDEX_BOOT;
+
   var cfg = loadConfig();
   if (!cfg || !cfg.host) {
+    if (SKIP_INDEX_BOOT) {
+      // Secondary page reached without config — happens if the user
+      // bookmarks videoPlayer.html, or if localStorage gets cleared
+      // mid-session. Send them back to the entry point.
+      console.warn('[tizen-bootstrap] no config in headless mode; navigating to index');
+      location.replace('index.html');
+      return;
+    }
     // Defer until DOM is ready so document.body exists.
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () {
@@ -275,6 +289,9 @@
   // Late patches that depend on Chorus2's globals being available are
   // wired in Phase 3 (AVPlay swap touches Api.Files::downloadPath and
   // document.createElement('video')). Phase 1/2 leave them alone.
+
+  // Headless mode: stop here. videoPlayer.html drives AVPlay itself.
+  if (SKIP_INDEX_BOOT) return;
 
   // All patches are in place. Load Chorus2.
   if (document.readyState === 'loading') {

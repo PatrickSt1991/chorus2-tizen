@@ -54,8 +54,9 @@ fail() { printf "\033[1;31m[build]\033[0m %s\n" "$*" >&2; exit 1; }
 # --- Sanity checks on inputs -------------------------------------------------
 
 [[ -f "$ROOT/dist/index.html" ]] || fail "dist/index.html missing — is this the chorus2 repo root?"
-[[ -f "$WRAPPER/config.xml"   ]] || fail "wrapper/config.xml missing"
-[[ -f "$WRAPPER/icon.png"     ]] || fail "wrapper/icon.png missing"
+[[ -f "$WRAPPER/config.xml"       ]] || fail "wrapper/config.xml missing"
+[[ -f "$WRAPPER/icon.png"         ]] || fail "wrapper/icon.png missing"
+[[ -f "$WRAPPER/videoPlayer.html" ]] || fail "wrapper/videoPlayer.html missing"
 [[ -f "$EXTRAS/tizen-bootstrap.js" ]] || fail "extras/tizen-bootstrap.js missing"
 [[ -f "$EXTRAS/tizen-sw.js"        ]] || fail "extras/tizen-sw.js missing"
 [[ -f "$EXTRAS/tizen.css"          ]] || fail "extras/tizen.css missing"
@@ -70,10 +71,12 @@ mkdir -p "$BUILD_DIR"
 # Copy Chorus2 prebuilt dist (including videoPlayer.html — Phase 3 patches it).
 cp -r "$ROOT/dist/." "$BUILD_DIR/"
 
-# Wrapper + extras override anything with the same name (config.xml is the
-# obvious case).
-cp "$WRAPPER/config.xml" "$BUILD_DIR/config.xml"
-cp "$WRAPPER/icon.png"   "$BUILD_DIR/icon.png"
+# Wrapper + extras override anything with the same name (config.xml and
+# videoPlayer.html are the obvious cases — dist/ ships its own
+# video.js-based videoPlayer.html which we replace with the AVPlay one).
+cp "$WRAPPER/config.xml"       "$BUILD_DIR/config.xml"
+cp "$WRAPPER/icon.png"         "$BUILD_DIR/icon.png"
+cp "$WRAPPER/videoPlayer.html" "$BUILD_DIR/videoPlayer.html"
 cp "$EXTRAS/tizen-bootstrap.js"   "$BUILD_DIR/tizen-bootstrap.js"
 cp "$EXTRAS/tizen-sw.js"          "$BUILD_DIR/tizen-sw.js"
 cp "$EXTRAS/tizen.css"            "$BUILD_DIR/tizen.css"

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Chorus2 Video Player</title>
+    <meta name="viewport" content="width=1920,user-scalable=no">
+
+    <!-- The bootstrap shouldn't render the setup screen or load Chorus2
+         here — we only need its patches, config globals, and the resolver. -->
+    <script>window.TIZEN_SKIP_INDEX_BOOT = true;</script>
+    <script src="tizen-bootstrap.js"></script>
+
+    <link rel="stylesheet" href="tizen.css">
+</head>
+<body class="tz-video-page">
+
+    <!-- AVPlay renders on a hardware overlay; this transparent div is what
+         setDisplayRect targets. -->
+    <div id="tizen-avplay-surface"></div>
+
+    <div class="tz-video-controls" id="tz-controls">
+        <div class="row">
+            <button id="tz-btn-play" type="button" autofocus>Pause</button>
+            <button id="tz-btn-back" type="button">Back</button>
+            <div class="progress"><div class="fill" id="tz-fill"></div></div>
+            <span class="time" id="tz-time">0:00 / 0:00</span>
+        </div>
+    </div>
+
+    <div class="tz-video-overlay" id="tz-overlay">Loading…</div>
+
+<script>
+(function () {
+    'use strict';
+
+    function param(name) {
+        var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+    }
+
+    var src = param('src');
+    var yt  = param('yt');
+
+    // YouTube: keep the upstream iframe approach. AVPlay can't render YT
+    // and there's no Kodi auth to inject.
+    if (yt) {
+        document.body.innerHTML = '';
+        var iframe = document.createElement('iframe');
+        iframe.src = 'https://www.youtube.com/embed/' + encodeURIComponent(yt) +
+                     '?rel=0&showinfo=0&autoplay=1&iv_load_policy=3';
+        iframe.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0';
+        iframe.allow = 'autoplay; encrypted-media';
+        iframe.allowFullscreen = true;
+        document.body.appendChild(iframe);
+        return;
+    }
+
+    if (!src) {
+        showError('No media source.', 'Open this page with ?src=<path>.');
+        return;
+    }
+
+    // The caller (Chorus2's Api.Files::videoStream → downloadPath) passes
+    // the path that Kodi's Files.PrepareDownload returned — typically a
+    // relative `vfs/...?ts=...`. Absolutize via the bootstrap's resolver.
+    var absUrl = (window.TIZEN_RESOLVE_URL || function (u) { return u; })(src);
+    var withAuth = embedBasicAuth(absUrl);
+
+    var hasAvplay = typeof webapis !== 'undefined' &&
+                    webapis.avplay &&
+                    typeof webapis.avplay.open === 'function';
+
+    if (hasAvplay) {
+        playWithAvplay(withAuth);
+    } else {
+        playWithHtml5(withAuth);
+    }
+
+    // ---- AVPlay branch ----------------------------------------------------
+
+    function playWithAvplay(url) {
+        var surface = document.getElementById('tizen-avplay-surface');
+        document.body.classList.add('tizen-avplay-active');
+
+        try {
+            webapis.avplay.open(url);
+        } catch (e) {
+            showError('AVPlay open failed', String(e && e.message || e));
+            return;
+        }
+
+        try {
+            webapis.avplay.setListener({
+                onbufferingstart:    function () { setOverlay('Buffering…'); },
+                onbufferingprogress: function (p) { setOverlay('Buffering… ' + p + '%'); },
+                onbufferingcomplete: function () { setOverlay(''); },
+                oncurrentplaytime:   function (ms) { onTime(ms); },
+                onstreamcompleted:   function () { onCompleted(); },
+                onerror:             function (e) {
+                    showError('Playback error', JSON.stringify(e));
+                },
+                onevent:             function () { /* informational events; ignore */ }
+            });
+        } catch (e) {
+            console.warn('[videoPlayer] setListener failed', e);
+        }
+
+        // For HEVC and 4K, hint the player.
+        trySet('SET_MODE_4K', 'TRUE');
+
+        positionSurface();
+        window.addEventListener('resize', positionSurface);
+
+        webapis.avplay.prepareAsync(
+            function onPrepared() {
+                try {
+                    webapis.avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+                } catch (_) {}
+                try {
+                    AvplayState.duration = webapis.avplay.getDuration() || 0;
+                    updateTimeLabel();
+                    webapis.avplay.play();
+                    AvplayState.playing = true;
+                    setPlayLabel();
+                    setOverlay('');
+                } catch (e) {
+                    showError('AVPlay play() failed', String(e && e.message || e));
+                }
+            },
+            function onPrepareFail(err) {
+                showError('AVPlay prepare failed', JSON.stringify(err));
+            }
+        );
+
+        bindControls({
+            togglePlay: function () {
+                if (AvplayState.playing) {
+                    webapis.avplay.pause();
+                    AvplayState.playing = false;
+                } else {
+                    webapis.avplay.play();
+                    AvplayState.playing = true;
+                }
+                setPlayLabel();
+            },
+            seekRelative: function (deltaMs) {
+                var cur = webapis.avplay.getCurrentTime() || 0;
+                var target = Math.max(0, cur + deltaMs);
+                webapis.avplay.seekTo(target);
+            },
+            stop: stopAndExit
+        });
+
+        function stopAndExit() {
+            try { webapis.avplay.stop();  } catch (_) {}
+            try { webapis.avplay.close(); } catch (_) {}
+            history.length > 1 ? history.back() : window.close();
+        }
+    }
+
+    function positionSurface() {
+        var rect = document.getElementById('tizen-avplay-surface').getBoundingClientRect();
+        try {
+            webapis.avplay.setDisplayRect(
+                Math.round(rect.left),
+                Math.round(rect.top),
+                Math.round(rect.width),
+                Math.round(rect.height)
+            );
+        } catch (e) {
+            console.warn('[videoPlayer] setDisplayRect failed', e);
+        }
+    }
+
+    function trySet(key, val) {
+        try { webapis.avplay.setStreamingProperty(key, val); }
+        catch (e) { /* property unsupported on this firmware; not fatal */ }
+    }
+
+    // ---- HTML5 fallback (dev preview / non-Tizen WebView) ---------------
+
+    function playWithHtml5(url) {
+        var v = document.createElement('video');
+        v.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;background:#000';
+        v.controls = false;
+        v.autoplay = true;
+        v.src = url;
+        document.getElementById('tizen-avplay-surface').appendChild(v);
+
+        v.addEventListener('loadedmetadata', function () {
+            AvplayState.duration = (v.duration || 0) * 1000;
+            updateTimeLabel();
+        });
+        v.addEventListener('timeupdate', function () { onTime(v.currentTime * 1000); });
+        v.addEventListener('ended',     onCompleted);
+        v.addEventListener('error',     function () {
+            showError('HTML5 video error', v.error ? ('code ' + v.error.code) : 'unknown');
+        });
+        AvplayState.playing = true;
+        setPlayLabel();
+        setOverlay('');
+
+        bindControls({
+            togglePlay: function () {
+                if (v.paused) v.play(); else v.pause();
+                AvplayState.playing = !v.paused;
+                setPlayLabel();
+            },
+            seekRelative: function (deltaMs) { v.currentTime = Math.max(0, v.currentTime + deltaMs / 1000); },
+            stop: function () {
+                v.pause();
+                v.removeAttribute('src');
+                v.load();
+                history.length > 1 ? history.back() : window.close();
+            }
+        });
+    }
+
+    // ---- Shared UI ------------------------------------------------------
+
+    var AvplayState = { duration: 0, currentMs: 0, playing: false };
+    var hideTimer;
+
+    function setOverlay(text) {
+        var el = document.getElementById('tz-overlay');
+        el.textContent = text || '';
+        el.style.display = text ? 'flex' : 'none';
+    }
+
+    function setPlayLabel() {
+        document.getElementById('tz-btn-play').textContent =
+            AvplayState.playing ? 'Pause' : 'Play';
+    }
+
+    function onTime(ms) {
+        AvplayState.currentMs = ms || 0;
+        if (AvplayState.duration > 0) {
+            var pct = Math.min(100, 100 * AvplayState.currentMs / AvplayState.duration);
+            document.getElementById('tz-fill').style.width = pct + '%';
+        }
+        updateTimeLabel();
+    }
+
+    function updateTimeLabel() {
+        document.getElementById('tz-time').textContent =
+            fmt(AvplayState.currentMs) + ' / ' + fmt(AvplayState.duration);
+    }
+
+    function fmt(ms) {
+        if (!ms || ms < 0) return '0:00';
+        var s = Math.floor(ms / 1000);
+        var m = Math.floor(s / 60);
+        var h = Math.floor(m / 60);
+        m %= 60; s %= 60;
+        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+        return (h > 0 ? h + ':' + pad(m) : m + '') + ':' + pad(s);
+    }
+
+    function onCompleted() {
+        // When the stream finishes naturally, drop back to Chorus2.
+        history.length > 1 ? history.back() : window.close();
+    }
+
+    function showError(title, detail) {
+        var err = document.createElement('div');
+        err.className = 'tz-video-error';
+        err.innerHTML = '<h2></h2><p></p><p style="opacity:.6">Press Back to return.</p>';
+        err.querySelector('h2').textContent = title;
+        err.querySelector('p').textContent = detail || '';
+        document.body.appendChild(err);
+    }
+
+    function bindControls(handlers) {
+        document.getElementById('tz-btn-play').addEventListener('click', handlers.togglePlay);
+        document.getElementById('tz-btn-back').addEventListener('click', handlers.stop);
+
+        document.addEventListener('keydown', function (e) {
+            showControls();
+            switch (e.keyCode) {
+                case 13:    // OK / Enter
+                case 32:    // Space
+                case 415:   // Tizen Play
+                case 19:    // Tizen Pause
+                case 10252: // Tizen PlayPause
+                    handlers.togglePlay();
+                    e.preventDefault();
+                    break;
+                case 413:   // Tizen Stop
+                case 10009: // Tizen Back
+                case 27:    // Escape
+                    handlers.stop();
+                    e.preventDefault();
+                    break;
+                case 39:    // Right
+                case 417:   // FastForward
+                    handlers.seekRelative(15000);
+                    e.preventDefault();
+                    break;
+                case 37:    // Left
+                case 412:   // Rewind
+                    handlers.seekRelative(-15000);
+                    e.preventDefault();
+                    break;
+            }
+        });
+        showControls();
+    }
+
+    function showControls() {
+        document.getElementById('tz-controls').classList.remove('hidden');
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(function () {
+            document.getElementById('tz-controls').classList.add('hidden');
+        }, 4000);
+    }
+
+    // ---- Embed Basic Auth into the URL for AVPlay -----------------------
+    //
+    // AVPlay's open() takes only a URL. The cleanest way to pass HTTP
+    // Basic Auth is the userinfo form (http://user:pass@host:port/...).
+    // Tizen's native HTTP stack honours it; the Authorization header is
+    // generated server-side. Cookies and CUSTOM_HTTP_HEADER are Tizen-
+    // version-specific and not always honoured for the initial request.
+    function embedBasicAuth(url) {
+        if (!url) return url;
+        if (!window.TIZEN_KODI_USER) return url; // no creds configured
+        try {
+            var u = new URL(url);
+            if (u.username || u.password) return url; // already authed
+            u.username = encodeURIComponent(window.TIZEN_KODI_USER);
+            u.password = encodeURIComponent(window.TIZEN_KODI_PASS || '');
+            return u.toString();
+        } catch (e) {
+            return url;
+        }
+    }
+
+})();
+</script>
+</body>
+</html>
