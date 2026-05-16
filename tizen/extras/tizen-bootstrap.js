@@ -43,57 +43,72 @@
   // turns the post-submit Chorus2 loading-screen hang into an actionable
   // diagnostic when host/auth is wrong.
   function showSetupScreen(existing) {
-    document.documentElement.style.background = '#0a0e13';
+    document.documentElement.style.cssText =
+      'background:#0a0e13 radial-gradient(ellipse at top, #1a2336 0%, #0a0e13 60%);';
     document.body.innerHTML = '';
     document.body.style.cssText =
-      'margin:0;padding:0;background:#0a0e13;color:#f0f4fa;' +
-      'font:18px system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;' +
-      'min-height:100vh;';
+      'margin:0;padding:0;color:#f0f4fa;' +
+      'font:20px system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;' +
+      'min-height:100vh;background:transparent;';
 
     var wrap = document.createElement('div');
     wrap.style.cssText =
-      'max-width:620px;margin:5vh auto;padding:40px 48px 32px;' +
-      'background:#161c28;border:1px solid #232c3d;border-radius:12px;' +
-      'box-shadow:0 8px 32px rgba(0,0,0,.5);';
+      'max-width:760px;margin:7vh auto;padding:56px 64px 44px;' +
+      'background:#141a26;border:1px solid #232c3d;border-radius:14px;' +
+      'box-shadow:0 12px 48px rgba(0,0,0,.55),0 2px 0 rgba(255,255,255,.03) inset;';
 
+    // The logo is the same icon.png the .wgt ships at root, so we know it
+    // exists. Falls back to a tile if the <img> fails.
     wrap.innerHTML =
-      // Header
-      '<div style="display:flex;align-items:center;gap:14px;margin:0 0 4px">' +
-        '<div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#4ea1ff,#2563eb);' +
-        'display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:20px">C2</div>' +
-        '<h1 style="margin:0;font-size:30px;font-weight:600;color:#f5f7fa;letter-spacing:-.01em">Chorus2 for Tizen</h1>' +
+      // Header — logo + title side by side (no CSS gap; margin-left does it)
+      '<div style="display:flex;align-items:center;margin:0 0 6px">' +
+        '<div style="width:64px;height:64px;border-radius:14px;overflow:hidden;' +
+        'background:linear-gradient(135deg,#4ea1ff,#2563eb);' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'box-shadow:0 4px 14px rgba(78,161,255,.25)">' +
+          '<img src="icon.png" alt="" style="width:64px;height:64px;display:block" ' +
+          'onerror="this.style.display=\'none\'">' +
+        '</div>' +
+        '<h1 style="margin:0 0 0 22px;font-size:40px;font-weight:700;' +
+        'color:#f7f9fc;letter-spacing:-.015em;line-height:1.1">Chorus2 <span style="font-weight:400;color:#9aa6b8">for Tizen</span></h1>' +
       '</div>' +
-      '<p style="margin:0 0 28px 54px;color:#a8b3c2;font-size:16px">Connect to your Kodi server.</p>' +
-      '<div style="height:1px;background:#232c3d;margin:0 0 28px"></div>' +
+      '<p style="margin:8px 0 32px 86px;color:#c8d2dd;font-size:18px">' +
+        'Point this app at your Kodi server to get started.' +
+      '</p>' +
+      '<div style="height:1px;background:#232c3d;margin:0 0 32px"></div>' +
 
-      '<form id="tz-setup">' +
+      '<form id="tz-setup" autocomplete="off">' +
         // Server section
         section('Server') +
         field('host',     'Kodi host or IP', existing && existing.host || '',          'text',   'e.g. 192.168.1.50') +
         field('port',     'HTTP port',       existing && existing.port || '8080',      'number', '8080') +
 
         // Auth section
-        section('Authentication', '28px') +
+        section('Authentication', '32px') +
         field('username', 'Username',        existing && existing.username || 'kodi', 'text',     'kodi') +
-        field('password', 'Password',        existing && existing.password || '',     'password', '········') +
+        field('password', 'Password',        existing && existing.password || '',     'password', 'Your Kodi password') +
 
-        // Actions
-        '<div style="display:flex;gap:12px;margin-top:24px">' +
-          button('save',  'Connect', true) +
-          button('reset', 'Reset',   false) +
+        // Actions — no CSS gap; margin-left on the second button instead
+        '<div style="display:flex;margin-top:32px">' +
+          button('save',  'Connect',  true) +
+          '<span style="display:inline-block;width:14px"></span>' +
+          button('reset', 'Reset',    false) +
         '</div>' +
 
-        // Status line
-        '<div id="tz-status" style="margin:18px 0 0;padding:14px 16px;' +
-            'background:#0d1218;border:1px solid #232c3d;border-radius:8px;' +
-            'color:#a8b3c2;font-size:15px;min-height:1.3em;display:flex;align-items:center;gap:10px">' +
-          '<span id="tz-status-dot" style="width:8px;height:8px;border-radius:50%;background:#4a5566;flex:none"></span>' +
+        // Status line — no CSS gap; margin-right on the dot instead
+        '<div id="tz-status" style="margin:22px 0 0;padding:16px 18px;' +
+            'background:#0d1218;border:1px solid #232c3d;border-radius:10px;' +
+            'color:#c8d2dd;font-size:16px;min-height:1.3em;display:flex;align-items:center">' +
+          '<span id="tz-status-dot" style="width:10px;height:10px;border-radius:50%;background:#4a5566;flex:none;margin-right:12px"></span>' +
           '<span id="tz-status-text">Ready. Enter your Kodi details and press Connect.</span>' +
         '</div>' +
 
         // Hint
-        '<p style="color:#7a8694;font-size:13px;margin:14px 0 0">' +
-          'Use ↑ / ↓ or OK to move between fields. Back exits.' +
+        '<p style="color:#9aa6b8;font-size:14px;margin:18px 0 0;text-align:center">' +
+          'Use <kbd style="padding:1px 6px;background:#232c3d;border-radius:4px;color:#d0d8e3;font:inherit">↑</kbd> ' +
+          '<kbd style="padding:1px 6px;background:#232c3d;border-radius:4px;color:#d0d8e3;font:inherit">↓</kbd> ' +
+          'or <kbd style="padding:1px 8px;background:#232c3d;border-radius:4px;color:#d0d8e3;font:inherit">OK</kbd> ' +
+          'to move between fields. <kbd style="padding:1px 8px;background:#232c3d;border-radius:4px;color:#d0d8e3;font:inherit">Back</kbd> exits.' +
         '</p>' +
       '</form>';
     document.body.appendChild(wrap);
@@ -256,45 +271,64 @@
     var v = String(value).replace(/"/g, '&quot;');
     var p = String(placeholder).replace(/"/g, '&quot;');
     return (
-      '<label style="display:block;margin:0 0 16px">' +
-        '<span style="display:block;margin:0 0 7px;color:#d0d8e3;font-size:14px;font-weight:500">' + label + '</span>' +
+      '<label style="display:block;margin:0 0 18px">' +
+        '<span style="display:block;margin:0 0 8px;color:#d0d8e3;font-size:15px;font-weight:500">' + label + '</span>' +
         '<input name="' + name + '" type="' + type + '" value="' + v + '" placeholder="' + p + '" ' +
         'autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" ' +
-        'style="width:100%;box-sizing:border-box;padding:13px 16px;font-size:18px;' +
-        'background:#0d1218;border:2px solid #2a3242;border-radius:8px;color:#f5f7fa;' +
-        'outline:none;font-family:inherit">' +
+        'style="width:100%;box-sizing:border-box;padding:16px 18px;font-size:22px;' +
+        'background:#0d1218;border:2px solid #2a3242;border-radius:10px;color:#f5f7fa;' +
+        '-webkit-text-fill-color:#f5f7fa;caret-color:#4ea1ff;' +
+        'outline:none;font-family:inherit;' +
+        '-webkit-transition:border-color .15s,box-shadow .15s;transition:border-color .15s,box-shadow .15s">' +
       '</label>'
     );
   }
 
   function button(id, label, primary) {
-    var bg, color, border;
+    var bg, color, border, shadow;
     if (primary) {
       bg = 'linear-gradient(180deg,#4ea1ff 0%,#2e7dd7 100%)';
       color = '#fff';
       border = '#2e7dd7';
+      shadow = '0 4px 12px rgba(78,161,255,.25)';
     } else {
       bg = '#1f2837';
       color = '#d0d8e3';
       border = '#2a3242';
+      shadow = 'none';
     }
     return (
       '<button id="tz-' + id + '" type="' + (primary ? 'submit' : 'button') + '" ' +
-      'style="padding:12px 26px;font-size:16px;font-weight:600;border:1px solid ' + border + ';' +
-      'border-radius:8px;cursor:pointer;background:' + bg + ';color:' + color + ';' +
-      'font-family:inherit">' + label + '</button>'
+      'style="padding:14px 32px;font-size:18px;font-weight:600;border:1px solid ' + border + ';' +
+      'border-radius:10px;cursor:pointer;background:' + bg + ';color:' + color + ';' +
+      'box-shadow:' + shadow + ';' +
+      'font-family:inherit;-webkit-transition:transform .1s,box-shadow .15s;' +
+      'transition:transform .1s,box-shadow .15s">' + label + '</button>'
     );
   }
 
   // Inject a focus-ring style early so the setup form is remote-navigable.
+  // Multiple placeholder selectors for Tizen 5 WebKit compatibility.
   (function injectFocusCss() {
     var s = document.createElement('style');
-    s.textContent =
+    s.textContent = (
+      // Focus indicator. Tizen 5 / Chromium 47 honours classic outline +
+      // box-shadow. !important defeats any base style that may follow.
       '#tz-setup input:focus,#tz-setup button:focus{' +
-        'outline:3px solid #4ea1ff;outline-offset:3px;border-color:#4ea1ff' +
+        'outline:none !important;' +
+        'border-color:#4ea1ff !important;' +
+        'box-shadow:0 0 0 4px rgba(78,161,255,.35) !important' +
       '}' +
+      // Placeholder color: vendor-prefixed for older WebKit (Tizen 4–5),
+      // Mozilla-prefixed for completeness, plus the modern selector.
+      '#tz-setup input::-webkit-input-placeholder{color:#9aa6b8;opacity:1}' +
+      '#tz-setup input:-ms-input-placeholder{color:#9aa6b8;opacity:1}' +
+      '#tz-setup input::-moz-placeholder{color:#9aa6b8;opacity:1}' +
       '#tz-setup input::placeholder{color:#9aa6b8;opacity:1}' +
-      '#tz-setup button[disabled]{cursor:default}';
+      '#tz-setup button[disabled]{cursor:default;opacity:.65}' +
+      // Press feedback
+      '#tz-setup button:active{transform:translateY(1px)}'
+    );
     document.head.appendChild(s);
   })();
 
@@ -469,13 +503,17 @@
   // including its own remote-key handling.
   if (SKIP_INDEX_BOOT) return;
 
-  // --- TV remote keys (Phase 4) -----------------------------------------
-  // Samsung TVs deliver media + back/exit keys only after the app
-  // explicitly registers for them. Arrow keys + OK are delivered
-  // unconditionally and handled by the spatial-navigation focus model
-  // — for that to work, focusable elements need tabindex. Chorus2 uses
-  // <a href> heavily (focusable already); the .control-* divs in the
-  // player bar are the main exceptions and we fix those below.
+  // --- TV remote keys + spatial navigation (Phase 4) --------------------
+  // Tizen 5 does not provide built-in spatial navigation for web apps, so
+  // we implement it manually. Arrow keys score every visible focusable
+  // element by geometric distance in the requested direction + axis
+  // alignment, and focus the best one. OK fires a click on the focused
+  // element when it isn't a native activator (anchors and buttons handle
+  // OK themselves; <div tabindex="0"> doesn't).
+  //
+  // We also expand the tabindex pass: most of Chorus2's clickable
+  // surfaces (list items, control buttons, card tiles) are <div> or <li>
+  // without tabindex.
 
   function registerTVKeys() {
     if (typeof tizen === 'undefined' || !tizen.tvinputdevice) return;
@@ -497,26 +535,145 @@
     return false;
   }
 
+  // --- Spatial nav ------------------------------------------------------
+
+  var FOCUSABLE_SEL =
+    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), ' +
+    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  function isVisible(el) {
+    var rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return false;
+    // Off-screen far above/left isn't worth focusing.
+    if (rect.bottom < 0 || rect.right < 0) return false;
+    if (rect.top > (window.innerHeight + rect.height)) return false;
+    if (rect.left > (window.innerWidth + rect.width)) return false;
+    var style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    if (style.opacity === '0') return false;
+    return true;
+  }
+
+  function getFocusables() {
+    var nodes = document.querySelectorAll(FOCUSABLE_SEL);
+    var out = [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (isVisible(nodes[i])) out.push(nodes[i]);
+    }
+    return out;
+  }
+
+  function moveFocus(dir) {
+    var current = document.activeElement;
+    var all = getFocusables();
+    if (all.length === 0) return false;
+
+    if (!current || current === document.body || all.indexOf(current) < 0) {
+      // No tracked focus — start at the first visible focusable.
+      all[0].focus();
+      scrollIntoViewSafe(all[0]);
+      return true;
+    }
+
+    var srcRect = current.getBoundingClientRect();
+    var srcCx = (srcRect.left + srcRect.right) / 2;
+    var srcCy = (srcRect.top + srcRect.bottom) / 2;
+
+    var best = null;
+    var bestScore = Infinity;
+
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el === current) continue;
+      var r = el.getBoundingClientRect();
+      var cx = (r.left + r.right) / 2;
+      var cy = (r.top + r.bottom) / 2;
+
+      var primary, align;
+      // Must lie in the requested halfspace, with a 4px slack so
+      // wrapping-row neighbours don't accidentally count as "below".
+      if (dir === 'up') {
+        if (r.bottom > srcRect.top - 4) continue;
+        primary = srcRect.top - r.bottom;
+        align = Math.abs(cx - srcCx);
+      } else if (dir === 'down') {
+        if (r.top < srcRect.bottom + 4) continue;
+        primary = r.top - srcRect.bottom;
+        align = Math.abs(cx - srcCx);
+      } else if (dir === 'left') {
+        if (r.right > srcRect.left - 4) continue;
+        primary = srcRect.left - r.right;
+        align = Math.abs(cy - srcCy);
+      } else /* right */ {
+        if (r.left < srcRect.right + 4) continue;
+        primary = r.left - srcRect.right;
+        align = Math.abs(cy - srcCy);
+      }
+      // Score: primary distance + 2× alignment penalty. The factor of 2
+      // means "in line with me" wins over "closer but offset by a row".
+      var score = primary + align * 2;
+      if (score < bestScore) { bestScore = score; best = el; }
+    }
+
+    if (best) {
+      best.focus();
+      scrollIntoViewSafe(best);
+      return true;
+    }
+    return false;
+  }
+
+  function scrollIntoViewSafe(el) {
+    // Chromium 47 (Tizen 5.0) supports scrollIntoView() but not the
+    // options bag. Bare call is fine.
+    try { el.scrollIntoView(false); } catch (_) {}
+  }
+
+  function activateFocused() {
+    var el = document.activeElement;
+    if (!el || el === document.body) return false;
+    // Anchors and buttons handle Enter natively. <input> Enter submits
+    // a form. For tabindex'd divs/li/etc., fire a synthetic click.
+    var tag = el.tagName;
+    if (tag === 'A' || tag === 'BUTTON' || tag === 'INPUT' ||
+        tag === 'SELECT' || tag === 'TEXTAREA') {
+      return false; // browser default
+    }
+    el.click();
+    return true;
+  }
+
   document.addEventListener('keydown', function (e) {
     switch (e.keyCode) {
+      case 37: // ArrowLeft
+        if (moveFocus('left'))  e.preventDefault();
+        break;
+      case 38: // ArrowUp
+        if (moveFocus('up'))    e.preventDefault();
+        break;
+      case 39: // ArrowRight
+        if (moveFocus('right')) e.preventDefault();
+        break;
+      case 40: // ArrowDown
+        if (moveFocus('down'))  e.preventDefault();
+        break;
+      case 13: // OK / Enter
+        if (activateFocused()) e.preventDefault();
+        break;
       case 10009: // Tizen Back / Return
-        // Prefer hash-based back navigation (Chorus2 uses hash routing).
         if (location.hash && location.hash !== '#' && location.hash !== '#home') {
           history.back();
           e.preventDefault();
         } else {
           try {
             tizen.application.getCurrentApplication().exit();
-          } catch (_) { /* not in Tizen WebView; ignore */ }
+          } catch (_) { /* not in Tizen WebView */ }
         }
         break;
       case 415:   // Tizen Play
       case 19:    // Tizen Pause
       case 10252: // Tizen PlayPause
-        if (clickIfFound('.control-play')) e.preventDefault();
-        break;
-      case 413:   // Tizen Stop — Chorus2 has no Stop button; map to play
-                  // (acts as pause if currently playing).
+      case 413:   // Tizen Stop
         if (clickIfFound('.control-play')) e.preventDefault();
         break;
       case 10232: // Tizen TrackPrevious
@@ -525,22 +682,37 @@
       case 10233: // Tizen TrackNext
         if (clickIfFound('.control-next')) e.preventDefault();
         break;
-      // FastForward (417) / Rewind (412): no scrubbing UI in Chorus2's
-      // remote-control mode (Kodi handles seek server-side via its own
-      // remote view). Leave unbound for now.
     }
   });
 
-  // Drop tabindex=0 onto the player controls so spatial navigation picks
-  // them up. Re-runs on Marionette re-renders via MutationObserver.
+  // Make Chorus2's clickable surfaces focusable. Chorus2 uses <div>/<li>
+  // with click handlers for cards, list rows, controls, and sidebar
+  // items — none focusable by default. Selectors are broad and the
+  // MutationObserver re-applies on every render so Marionette re-renders
+  // don't lose focusability.
+  var TABINDEX_SEL = (
+    '.control, .player-button, ' +                    // player bar
+    '.menu-item, .menu-link, .nav-link, ' +           // top/side nav
+    '.card, .item, .item-list-item, ' +               // grid tiles & list rows
+    '.list-item, .list-item-section, ' +
+    '.tab, .button, .btn, ' +
+    '[data-id], [data-type]'                          // catch-all for clickable Marionette items
+  );
+
   function applyFocusableTabindex(root) {
-    var nodes = (root || document).querySelectorAll(
-      '.control:not([tabindex]), .player-button:not([tabindex])'
-    );
-    for (var i = 0; i < nodes.length; i++) nodes[i].tabIndex = 0;
+    // Skip our own form (already handled inline) and obvious non-clickables.
+    var nodes = (root || document).querySelectorAll(TABINDEX_SEL);
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.tabIndex === -1 || el.hasAttribute('tabindex')) continue;
+      if (el.closest && el.closest('#tz-setup')) continue;
+      el.tabIndex = 0;
+    }
   }
+
   function watchForControls() {
     applyFocusableTabindex(document);
+    if (typeof MutationObserver !== 'function') return;
     var obs = new MutationObserver(function (muts) {
       for (var i = 0; i < muts.length; i++) {
         var added = muts[i].addedNodes;
@@ -556,6 +728,17 @@
   } else {
     watchForControls();
   }
+
+  // Once Chorus2 has rendered something, give the user a starting focus.
+  // Without this, the first arrow press has nothing to navigate from and
+  // would silently do nothing on the very first frame.
+  function seedInitialFocus() {
+    var list = getFocusables();
+    if (list.length > 0) {
+      list[0].focus();
+    }
+  }
+  setTimeout(seedInitialFocus, 1500);
 
   // All patches are in place. Load Chorus2.
   if (document.readyState === 'loading') {

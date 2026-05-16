@@ -14,7 +14,7 @@
 
 #tizen-avplay-surface {
     position: fixed;
-    inset: 0;
+    top: 0; right: 0; bottom: 0; left: 0;
     background: transparent;
     z-index: 1;
 }
@@ -39,10 +39,14 @@ body.tizen-avplay-active video {
 
 /* --- Global TV focus ------------------------------------------------------- */
 
+/* !important is intentional: Chorus2's base.css (loaded after this file)
+   resets outlines on many of its interactive elements. Without !important
+   we get invisible focus on a TV, which makes arrow navigation useless. */
 :focus,
 :focus-visible {
-    outline: 4px solid #2e7dd7;
-    outline-offset: 2px;
+    outline: 4px solid #4ea1ff !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 6px rgba(78, 161, 255, .25) !important;
 }
 
 /* Many Chorus2 interactive elements are <div>/<li>/<a> with click handlers
@@ -84,8 +88,8 @@ body.tizen-avplay-active video {
 .tz-video-controls .row {
     display: flex;
     align-items: center;
-    gap: 16px;
 }
+.tz-video-controls .row > * + * { margin-left: 16px; }
 
 .tz-video-controls button {
     appearance: none;
@@ -124,7 +128,7 @@ body.tizen-avplay-active video {
 
 .tz-video-overlay {
     position: fixed;
-    inset: 0;
+    top: 0; right: 0; bottom: 0; left: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -136,7 +140,7 @@ body.tizen-avplay-active video {
 
 .tz-video-error {
     position: fixed;
-    inset: 0;
+    top: 0; right: 0; bottom: 0; left: 0;
     display: flex;
     flex-direction: column;
     align-items: center;

@@ -48,7 +48,7 @@
         var iframe = document.createElement('iframe');
         iframe.src = 'https://www.youtube.com/embed/' + encodeURIComponent(yt) +
                      '?rel=0&showinfo=0&autoplay=1&iv_load_policy=3';
-        iframe.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0';
+        iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:0';
         iframe.allow = 'autoplay; encrypted-media';
         iframe.allowFullscreen = true;
         document.body.appendChild(iframe);
@@ -181,7 +181,7 @@
 
     function playWithHtml5(url) {
         var v = document.createElement('video');
-        v.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;background:#000';
+        v.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#000';
         v.controls = false;
         v.autoplay = true;
         v.src = url;
