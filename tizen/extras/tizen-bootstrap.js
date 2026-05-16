@@ -57,8 +57,10 @@
       'background:#141a26;border:1px solid #232c3d;border-radius:14px;' +
       'box-shadow:0 12px 48px rgba(0,0,0,.55),0 2px 0 rgba(255,255,255,.03) inset;';
 
-    // The logo is the same icon.png the .wgt ships at root, so we know it
-    // exists. Falls back to a tile if the <img> fails.
+    // The logo is the same icon.png the .wgt ships at root. The gradient
+    // tile behind it remains visible if the <img> ever fails to load —
+    // no inline onerror attribute needed (Tizen's WAS rejects inline
+    // event handlers, which was causing install to abort silently).
     wrap.innerHTML =
       // Header — logo + title side by side (no CSS gap; margin-left does it)
       '<div style="display:flex;align-items:center;margin:0 0 6px">' +
@@ -66,8 +68,8 @@
         'background:linear-gradient(135deg,#4ea1ff,#2563eb);' +
         'display:flex;align-items:center;justify-content:center;' +
         'box-shadow:0 4px 14px rgba(78,161,255,.25)">' +
-          '<img src="icon.png" alt="" style="width:64px;height:64px;display:block" ' +
-          'onerror="this.style.display=\'none\'">' +
+          '<img src="icon.png" alt="" id="tz-logo" ' +
+          'style="width:64px;height:64px;display:block">' +
         '</div>' +
         '<h1 style="margin:0 0 0 22px;font-size:40px;font-weight:700;' +
         'color:#f7f9fc;letter-spacing:-.015em;line-height:1.1">Chorus2 <span style="font-weight:400;color:#9aa6b8">for Tizen</span></h1>' +
@@ -112,6 +114,15 @@
         '</p>' +
       '</form>';
     document.body.appendChild(wrap);
+
+    // Hide the logo via JS if it ever fails to load — same effect as the
+    // old inline onerror attribute but no CSP violation. (Tizen WAS
+    // rejects inline event handlers; that's what caused the silent
+    // install failure in commit 9f44b16.)
+    var logo = document.getElementById('tz-logo');
+    if (logo) {
+      logo.addEventListener('error', function () { logo.style.display = 'none'; });
+    }
 
     var form = document.getElementById('tz-setup');
     form.host.focus();
