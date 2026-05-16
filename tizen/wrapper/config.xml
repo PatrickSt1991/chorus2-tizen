@@ -6,15 +6,14 @@
         viewmodes="maximized">
 
     <!-- required_version is the minimum Tizen WEB API version (not the
-         platform version). Samsung TVs cap at 2.4/4.0; values like 5.0
-         match no Web API and are rejected at install time. 2.3 is the
-         universal "works everywhere" baseline (matches jellyfin-tizen).
-         The actual Chromium version on the TV is determined by firmware,
-         not by this number — a 2019 Tizen 5.0 TV still gives us Chromium
-         56-era features even with required_version 2.3. -->
+         platform version). 2019+ Samsung TVs reject both extremes:
+         "5.0" matches no Web API at all, and "2.3" is below their minimum
+         acceptable. "4.0" is the value the build plan prescribed and is
+         what actually installs on the test TV (Samsung 2019 RU-series).
+         Do not change this without testing on real hardware. -->
     <tizen:application id="chorus2tzn.Chorus2"
                        package="chorus2tzn"
-                       required_version="2.3"/>
+                       required_version="4.0"/>
 
     <content src="index.html"/>
 
