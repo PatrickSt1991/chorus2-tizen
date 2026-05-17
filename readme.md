@@ -196,10 +196,8 @@ AVPlay's `open()` only takes a URL.
 
 - **[Chorus2](https://github.com/xbmc/chorus2)** by Jeremy Graham and the
   Kodi contributors — the web interface this app wraps. GPL-2.0.
-- **[jellyfin-tizen](https://github.com/jellyfin/jellyfin-tizen)** — the
-  AVPlay shim was originally written there, and the
-  [`tizen-jellyfin-avplay`](https://github.com/PatrickSt1991/tizen-jellyfin-avplay)
-  build pipeline was the model for ours. GPL-2.0.
+- **[jellyfin-tizen-avplay](https://github.com/PatrickSt1991/tizen-jellyfin-avplay)** — the
+  AVPlay shim was originally written there. GPL-2.0.
 - The Tizen Web Application docs and AVPlay API reference at
   [docs.tizen.org](https://docs.tizen.org/).
 
