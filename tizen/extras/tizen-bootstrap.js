@@ -587,7 +587,11 @@
   var cx = 0, cy = 0;
 
   function installCursor() {
-    if (cursor) return;
+    if (cursor) {
+      // Already constructed but possibly detached — reuse it.
+      attachCursor();
+      return;
+    }
     cursor = document.createElement('div');
     cursor.id = 'tz-cursor';
     cursor.setAttribute('aria-hidden', 'true');
@@ -602,11 +606,30 @@
       'style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))">' +
       '<path d="M4 3 L24 14 L15 15 L11 24 Z" fill="#ffffff" stroke="#000000" ' +
       'stroke-width="1.5" stroke-linejoin="round"/></svg>';
-    document.body.appendChild(cursor);
+    attachCursor();
 
     cx = Math.round(window.innerWidth / 2);
     cy = Math.round(window.innerHeight / 2);
     setCursor(cx, cy);
+
+    // Chorus2's Marionette views wipe and rerender body content during
+    // startup (Application.start, layout regions, fanart, etc.). Each
+    // wipe pulls our cursor out of the DOM. Re-attach whenever the
+    // body's children change and we discover the cursor isn't there.
+    if (typeof MutationObserver === 'function') {
+      var obs = new MutationObserver(function () {
+        if (!cursor.parentNode) attachCursor();
+      });
+      obs.observe(document.body, { childList: true, subtree: false });
+    }
+  }
+
+  function attachCursor() {
+    // Always append last so the cursor is the latest sibling and wins
+    // any z-index tie among elements at the body level.
+    if (cursor.parentNode !== document.body) {
+      document.body.appendChild(cursor);
+    }
   }
 
   function setCursor(x, y) {
