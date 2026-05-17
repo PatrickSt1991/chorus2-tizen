@@ -581,10 +581,38 @@
   // (which would otherwise forward arrows to Kodi as remote-control
   // commands) never sees the event when we consume it.
 
-  var CURSOR_STEP = 80;       // pixels per arrow keydown
-  var EDGE_PAD    = 12;       // distance from viewport edge that triggers a page scroll
+  // Cursor step is acceleration-based, not fixed.
+  //   BASE_STEP    — pixels for a single tap (fine selection)
+  //   STREAK_INC   — extra pixels added per consecutive same-direction
+  //                  keydown within REPEAT_WINDOW ms (so a held key ramps up)
+  //   STREAK_CAP   — max number of streak increments (caps top speed)
+  //   REPEAT_WINDOW — time since last arrow press that still counts as
+  //                  "continuation" of a hold; longer than this resets to base.
+  // First tap = 24px. Held tenth tap = 24 + 12*10 = 144px per step.
+  var BASE_STEP     = 24;
+  var STREAK_INC    = 12;
+  var STREAK_CAP    = 10;
+  var REPEAT_WINDOW = 250;    // ms
+  var EDGE_PAD      = 12;     // pixels from viewport edge that triggers a page scroll
+
   var cursor = null;
   var cx = 0, cy = 0;
+  var lastArrowKey = 0;
+  var lastArrowTs = 0;
+  var arrowStreak = 0;
+
+  function getStep(key) {
+    var now = Date.now();
+    if (key === lastArrowKey && now - lastArrowTs < REPEAT_WINDOW) {
+      arrowStreak = Math.min(arrowStreak + 1, STREAK_CAP);
+    } else {
+      // Different direction, or paused long enough — start fine again.
+      arrowStreak = 0;
+    }
+    lastArrowKey = key;
+    lastArrowTs = now;
+    return BASE_STEP + arrowStreak * STREAK_INC;
+  }
 
   function installCursor() {
     if (cursor) {
@@ -689,19 +717,19 @@
     switch (e.keyCode) {
       case 37: // ArrowLeft
         e.preventDefault(); e.stopImmediatePropagation();
-        moveCursor(-CURSOR_STEP, 0);
+        moveCursor(-getStep(37), 0);
         break;
       case 38: // ArrowUp
         e.preventDefault(); e.stopImmediatePropagation();
-        moveCursor(0, -CURSOR_STEP);
+        moveCursor(0, -getStep(38));
         break;
       case 39: // ArrowRight
         e.preventDefault(); e.stopImmediatePropagation();
-        moveCursor(CURSOR_STEP, 0);
+        moveCursor(getStep(39), 0);
         break;
       case 40: // ArrowDown
         e.preventDefault(); e.stopImmediatePropagation();
-        moveCursor(0, CURSOR_STEP);
+        moveCursor(0, getStep(40));
         break;
       case 13: // OK / Enter — click whatever's under the cursor
         e.preventDefault(); e.stopImmediatePropagation();
