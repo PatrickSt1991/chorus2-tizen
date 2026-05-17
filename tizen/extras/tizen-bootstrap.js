@@ -564,181 +564,128 @@
     return false;
   }
 
-  // --- Spatial nav ------------------------------------------------------
+  // --- Virtual mouse cursor ---------------------------------------------
+  // Chorus2 was designed mouse-first — most clickable surfaces are <div>
+  // or <li> with delegated jQuery click handlers, not focusable elements.
+  // Spatial keyboard navigation on top of that was always a stretch.
+  //
+  // Instead we render a real mouse pointer that the TV remote drives:
+  //   Arrow keys move the cursor 80px in that direction. When the cursor
+  //   reaches the edge of the viewport we scroll the page instead.
+  //   OK dispatches a full mousedown/mouseup/click sequence at the cursor
+  //   position, picking up whatever Chorus2 has rendered there via
+  //   document.elementFromPoint(). Same path the real mouse would take,
+  //   so jQuery delegated handlers all fire normally.
+  //
+  // We listen in capture phase so Chorus2's `$(document).keydown`
+  // (which would otherwise forward arrows to Kodi as remote-control
+  // commands) never sees the event when we consume it.
 
-  var FOCUSABLE_SEL =
-    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), ' +
-    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  var CURSOR_STEP = 80;       // pixels per arrow keydown
+  var EDGE_PAD    = 12;       // distance from viewport edge that triggers a page scroll
+  var cursor = null;
+  var cx = 0, cy = 0;
 
-  function isVisible(el) {
-    var rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return false;
-    // Off-screen far above/left isn't worth focusing.
-    if (rect.bottom < 0 || rect.right < 0) return false;
-    if (rect.top > (window.innerHeight + rect.height)) return false;
-    if (rect.left > (window.innerWidth + rect.width)) return false;
-    var style = window.getComputedStyle(el);
-    if (style.display === 'none' || style.visibility === 'hidden') return false;
-    if (style.opacity === '0') return false;
-    return true;
+  function installCursor() {
+    if (cursor) return;
+    cursor = document.createElement('div');
+    cursor.id = 'tz-cursor';
+    cursor.setAttribute('aria-hidden', 'true');
+    cursor.style.cssText =
+      'position:fixed;left:0;top:0;width:28px;height:28px;' +
+      'pointer-events:none;z-index:2147483647;' +
+      '-webkit-transform:translate3d(-100px,-100px,0);' +
+      'transform:translate3d(-100px,-100px,0);' +
+      'will-change:transform';
+    cursor.innerHTML =
+      '<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" ' +
+      'style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))">' +
+      '<path d="M4 3 L24 14 L15 15 L11 24 Z" fill="#ffffff" stroke="#000000" ' +
+      'stroke-width="1.5" stroke-linejoin="round"/></svg>';
+    document.body.appendChild(cursor);
+
+    cx = Math.round(window.innerWidth / 2);
+    cy = Math.round(window.innerHeight / 2);
+    setCursor(cx, cy);
   }
 
-  function getFocusables() {
-    var nodes = document.querySelectorAll(FOCUSABLE_SEL);
-    var out = [];
-    for (var i = 0; i < nodes.length; i++) {
-      if (isVisible(nodes[i])) out.push(nodes[i]);
-    }
-    return out;
-  }
-
-  // moveFocus(dir, opts):
-  //   opts.fromRect — optional source rect to search from. If omitted, we
-  //     use the active element's rect. Used by handleArrow after blurring
-  //     an input so we still navigate relative to where the input was.
-  //   opts.exclude — element to exclude from candidates. So we don't
-  //     jump back to the same input the user is trying to escape.
-  function moveFocus(dir, opts) {
-    opts = opts || {};
-    var current = document.activeElement;
-    var all = getFocusables();
-    if (all.length === 0) return false;
-
-    var srcRect;
-    if (opts.fromRect) {
-      srcRect = opts.fromRect;
-    } else if (current && current !== document.body && all.indexOf(current) >= 0) {
-      srcRect = current.getBoundingClientRect();
-    } else {
-      // No tracked focus and no fromRect — pick the first focusable.
-      var seed = all[0];
-      if (opts.exclude && seed === opts.exclude && all.length > 1) seed = all[1];
-      seed.focus();
-      scrollIntoViewSafe(seed);
-      return true;
-    }
-
-    var srcCx = (srcRect.left + srcRect.right) / 2;
-    var srcCy = (srcRect.top + srcRect.bottom) / 2;
-
-    var best = null;
-    var bestScore = Infinity;
-
-    for (var i = 0; i < all.length; i++) {
-      var el = all[i];
-      if (el === current || el === opts.exclude) continue;
-      var r = el.getBoundingClientRect();
-      var cx = (r.left + r.right) / 2;
-      var cy = (r.top + r.bottom) / 2;
-
-      var primary, align;
-      // Must lie in the requested halfspace, with a 4px slack so
-      // wrapping-row neighbours don't accidentally count as "below".
-      if (dir === 'up') {
-        if (r.bottom > srcRect.top - 4) continue;
-        primary = srcRect.top - r.bottom;
-        align = Math.abs(cx - srcCx);
-      } else if (dir === 'down') {
-        if (r.top < srcRect.bottom + 4) continue;
-        primary = r.top - srcRect.bottom;
-        align = Math.abs(cx - srcCx);
-      } else if (dir === 'left') {
-        if (r.right > srcRect.left - 4) continue;
-        primary = srcRect.left - r.right;
-        align = Math.abs(cy - srcCy);
-      } else /* right */ {
-        if (r.left < srcRect.right + 4) continue;
-        primary = r.left - srcRect.right;
-        align = Math.abs(cy - srcCy);
-      }
-      // Score: primary distance + 2× alignment penalty. The factor of 2
-      // means "in line with me" wins over "closer but offset by a row".
-      var score = primary + align * 2;
-      if (score < bestScore) { bestScore = score; best = el; }
-    }
-
-    if (best) {
-      best.focus();
-      scrollIntoViewSafe(best);
-      return true;
-    }
-    return false;
-  }
-
-  function scrollIntoViewSafe(el) {
-    // Chromium 47 (Tizen 5.0) supports scrollIntoView() but not the
-    // options bag. Bare call is fine.
-    try { el.scrollIntoView(false); } catch (_) {}
-  }
-
-  function activateFocused() {
-    var el = document.activeElement;
-    if (!el || el === document.body) return false;
-    // Anchors and buttons handle Enter natively. <input> Enter submits
-    // a form. For tabindex'd divs/li/etc., fire a synthetic click.
-    var tag = el.tagName;
-    if (tag === 'A' || tag === 'BUTTON' || tag === 'INPUT' ||
-        tag === 'SELECT' || tag === 'TEXTAREA') {
-      return false; // browser default
-    }
-    el.click();
-    return true;
-  }
-
-  // Arrow keys: always consume so Chorus2's keyboard handler (which
-  // forwards arrows to Kodi as remote-control commands when
-  // keyboardControl='kodi', the default) never sees them. Without this,
-  // every arrow press goes to Kodi server instead of moving focus on
-  // the TV.
-  function handleArrow(e, dir) {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-
-    var active = document.activeElement;
-    var isInput = active &&
-                  (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-
-    // First try with the active element (or body) as source.
-    if (moveFocus(dir)) return;
-
-    // No candidate in that direction. If we were in an input (search
-    // bar at the page edge is the common case), blur it and try again
-    // anchored at where the input was, excluding the input itself so
-    // we don't loop back to it.
-    if (isInput) {
-      var rect = active.getBoundingClientRect();
-      active.blur();
-      if (moveFocus(dir, { fromRect: rect, exclude: active })) return;
-
-      // Still nothing in the requested direction — fall back to first
-      // focusable that isn't the input we're escaping.
-      var all = getFocusables();
-      for (var i = 0; i < all.length; i++) {
-        if (all[i] === active) continue;
-        all[i].focus();
-        scrollIntoViewSafe(all[i]);
-        return;
-      }
+  function setCursor(x, y) {
+    cx = Math.max(0, Math.min(window.innerWidth  - 4, x));
+    cy = Math.max(0, Math.min(window.innerHeight - 4, y));
+    var t = 'translate3d(' + cx + 'px,' + cy + 'px,0)';
+    cursor.style.transform = t;
+    cursor.style.webkitTransform = t;
+    // Dispatch mousemove so Chorus2's hover styles light up under the
+    // cursor. The target is whatever sits beneath this exact pixel.
+    var under = document.elementFromPoint(cx, cy);
+    if (under) {
+      under.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true, cancelable: true, view: window,
+        clientX: cx, clientY: cy, button: 0
+      }));
     }
   }
 
-  // Use capture phase so we beat any handler Chorus2 registers via
-  // jQuery's $(document).keydown — those go on the bubble phase.
+  function moveCursor(dx, dy) {
+    var nx = cx + dx;
+    var ny = cy + dy;
+    // If we'd run off the edge, scroll the page instead so the user can
+    // reach off-screen content without the cursor getting stuck.
+    if (nx < EDGE_PAD)                           { window.scrollBy(dx, 0); nx = EDGE_PAD; }
+    else if (nx > window.innerWidth  - EDGE_PAD) { window.scrollBy(dx, 0); nx = window.innerWidth  - EDGE_PAD; }
+    if (ny < EDGE_PAD)                           { window.scrollBy(0, dy); ny = EDGE_PAD; }
+    else if (ny > window.innerHeight - EDGE_PAD) { window.scrollBy(0, dy); ny = window.innerHeight - EDGE_PAD; }
+    setCursor(nx, ny);
+  }
+
+  function clickAtCursor() {
+    var target = document.elementFromPoint(cx, cy);
+    if (!target) return;
+    // Full mousedown/mouseup/click chain so jQuery delegated handlers
+    // (Chorus2 uses jQuery + Marionette throughout) fire as if the user
+    // had clicked with a real mouse.
+    ['mousedown', 'mouseup', 'click'].forEach(function (type) {
+      target.dispatchEvent(new MouseEvent(type, {
+        bubbles: true, cancelable: true, view: window,
+        clientX: cx, clientY: cy, button: 0,
+        detail: type === 'click' ? 1 : 0
+      }));
+    });
+  }
+
+  // Install the cursor as soon as the body exists.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installCursor);
+  } else {
+    installCursor();
+  }
+
+  // Capture-phase keydown so Chorus2's bubble-phase jQuery handler
+  // never sees the arrows / OK / Back we consume.
   document.addEventListener('keydown', function (e) {
     switch (e.keyCode) {
-      case 37: handleArrow(e, 'left');  break; // ArrowLeft
-      case 38: handleArrow(e, 'up');    break; // ArrowUp
-      case 39: handleArrow(e, 'right'); break; // ArrowRight
-      case 40: handleArrow(e, 'down');  break; // ArrowDown
-      case 13: // OK / Enter
-        if (activateFocused()) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-        }
+      case 37: // ArrowLeft
+        e.preventDefault(); e.stopImmediatePropagation();
+        moveCursor(-CURSOR_STEP, 0);
+        break;
+      case 38: // ArrowUp
+        e.preventDefault(); e.stopImmediatePropagation();
+        moveCursor(0, -CURSOR_STEP);
+        break;
+      case 39: // ArrowRight
+        e.preventDefault(); e.stopImmediatePropagation();
+        moveCursor(CURSOR_STEP, 0);
+        break;
+      case 40: // ArrowDown
+        e.preventDefault(); e.stopImmediatePropagation();
+        moveCursor(0, CURSOR_STEP);
+        break;
+      case 13: // OK / Enter — click whatever's under the cursor
+        e.preventDefault(); e.stopImmediatePropagation();
+        clickAtCursor();
         break;
       case 10009: // Tizen Back / Return
-        e.preventDefault();
-        e.stopImmediatePropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
         if (location.hash && location.hash !== '#' && location.hash !== '#home') {
           history.back();
         } else {
@@ -770,60 +717,6 @@
         break;
     }
   }, true); // capture phase
-
-  // Make Chorus2's clickable surfaces focusable. Chorus2 uses <div>/<li>
-  // with click handlers for cards, list rows, controls, and sidebar
-  // items — none focusable by default. Selectors are broad and the
-  // MutationObserver re-applies on every render so Marionette re-renders
-  // don't lose focusability.
-  var TABINDEX_SEL = (
-    '.control, .player-button, ' +                    // player bar
-    '.menu-item, .menu-link, .nav-link, ' +           // top/side nav
-    '.card, .item, .item-list-item, ' +               // grid tiles & list rows
-    '.list-item, .list-item-section, ' +
-    '.tab, .button, .btn, ' +
-    '[data-id], [data-type]'                          // catch-all for clickable Marionette items
-  );
-
-  function applyFocusableTabindex(root) {
-    // Skip our own form (already handled inline) and obvious non-clickables.
-    var nodes = (root || document).querySelectorAll(TABINDEX_SEL);
-    for (var i = 0; i < nodes.length; i++) {
-      var el = nodes[i];
-      if (el.tabIndex === -1 || el.hasAttribute('tabindex')) continue;
-      if (el.closest && el.closest('#tz-setup')) continue;
-      el.tabIndex = 0;
-    }
-  }
-
-  function watchForControls() {
-    applyFocusableTabindex(document);
-    if (typeof MutationObserver !== 'function') return;
-    var obs = new MutationObserver(function (muts) {
-      for (var i = 0; i < muts.length; i++) {
-        var added = muts[i].addedNodes;
-        for (var j = 0; j < added.length; j++) {
-          if (added[j].nodeType === 1) applyFocusableTabindex(added[j]);
-        }
-      }
-    });
-    obs.observe(document.body, { childList: true, subtree: true });
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', watchForControls);
-  } else {
-    watchForControls();
-  }
-
-  // If Chorus2 hasn't focused anything by ~1.5s, seed focus on the first
-  // visible focusable so the user sees a focus ring without having to
-  // press arrows blindly. If Chorus2 (or a user click) already moved
-  // focus, leave it alone.
-  setTimeout(function () {
-    if (document.activeElement && document.activeElement !== document.body) return;
-    var list = getFocusables();
-    if (list.length > 0) list[0].focus();
-  }, 1500);
 
   // All patches are in place. Load Chorus2.
   if (document.readyState === 'loading') {
