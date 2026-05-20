@@ -100,6 +100,42 @@ li[data-id]:hover .play {
     background: transparent !important;
 }
 
+/* --- Audio-only "now playing" view --------------------------------------- */
+/* When the file is audio (mp3/flac/etc.), AVPlay still plays it but the
+   video plane stays empty — so a transparent body shows whatever was
+   behind (TV home screen / black). Paint a styled background and a card
+   with the filename so the user knows something IS playing. */
+.tz-audio-only {
+    background: radial-gradient(ellipse at top,
+                                #1a2336 0%, #0a0e13 70%) !important;
+}
+.tz-audio-card {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    -webkit-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+    width: 560px;
+    max-width: 80%;
+    padding: 40px 48px;
+    text-align: center;
+    background: #141a26;
+    border: 1px solid #232c3d;
+    border-radius: 16px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, .5);
+    z-index: 5;
+}
+.tz-audio-icon {
+    margin: 0 0 24px;
+}
+.tz-audio-title {
+    font-size: 22px;
+    font-weight: 500;
+    color: #f0f4fa;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
 .tz-video-controls {
     position: fixed;
     left: 0;

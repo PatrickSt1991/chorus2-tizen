@@ -580,12 +580,17 @@
   // Chorus2's file-browser controller hardcodes `command:kodi:controller`
   // (src/js/apps/browser/list/list_controller.js.coffee:7), so clicking
   // play on a video file always triggers a server-side Kodi playback —
-  // ignores our defaultPlayer='local' setting. To route playback to the
-  // TV instead we watch outgoing JSON-RPC, remember the last file added
-  // via Playlist.Insert, and when Player.Open follows we *don't* send
-  // it: we call Files.PrepareDownload ourselves and navigate this
-  // window to videoPlayer.html so AVPlay takes over.
-  var _lastInsertedFile = null;
+  // ignores our defaultPlayer='local' setting.
+  //
+  // We watch outgoing JSON-RPC for Player.Open. When we see one, we
+  // *don't* send it: instead we query Kodi's playlist (or look at the
+  // direct file param) to find the actual file path, then route playback
+  // to the TV via Files.PrepareDownload → videoPlayer.html → AVPlay.
+  //
+  // Previous version remembered Playlist.Insert.params[2].file but
+  // Chorus2 also uses {directory: …} inserts when you click "play folder"
+  // (the user's "second movie went to Kodi" log). Querying the playlist
+  // after Player.Open arrives covers both cases uniformly.
 
   function extractCallsFromBody(body) {
     if (typeof body !== 'string' || !body) return null;
@@ -600,27 +605,67 @@
   function maybeInterceptPlayerOpen(body) {
     var calls = extractCallsFromBody(body);
     if (!calls) return false;
-    var hasPlayerOpen = false;
     for (var i = 0; i < calls.length; i++) {
       var c = calls[i];
-      if (!c || !c.method) continue;
-      if (c.method === 'Playlist.Insert' && c.params) {
-        // params: [playlistid, position, {file:...}]
-        var item = c.params[2];
-        if (item && item.file) {
-          _lastInsertedFile = item.file;
-          try { dbg.send('localplay.remember', _lastInsertedFile); } catch (_) {}
-        }
-      } else if (c.method === 'Player.Open') {
-        hasPlayerOpen = true;
+      if (!c || c.method !== 'Player.Open') continue;
+      var item = c.params && c.params.item;
+      if (!item) continue;
+
+      // Direct file: Player.Open({item:{file:"..."}})
+      if (item.file) {
+        try { dbg.send('localplay.intercept', { kind: 'file', file: item.file }); } catch (_) {}
+        triggerLocalPlay(item.file);
+        return true;
       }
+      // Playlist play: Player.Open({item:{position, playlistid}})
+      // This is what file *and* folder plays both produce. Look up the
+      // playlist to find the actual file path.
+      if (typeof item.playlistid === 'number') {
+        var pos = typeof item.position === 'number' ? item.position : 0;
+        try { dbg.send('localplay.intercept', { kind: 'playlist', pid: item.playlistid, pos: pos }); } catch (_) {}
+        resolvePlaylistThenPlay(item.playlistid, pos);
+        return true;
+      }
+      // Library item (movieid/episodeid/songid). Could be added later
+      // — for now let it through to Kodi.
+      try { dbg.send('localplay.passthrough', { item: item }); } catch (_) {}
     }
-    if (!hasPlayerOpen) return false;
-    if (!_lastInsertedFile) return false; // nothing to play locally
-    var file = _lastInsertedFile;
-    _lastInsertedFile = null;
-    triggerLocalPlay(file);
-    return true;
+    return false;
+  }
+
+  function resolvePlaylistThenPlay(playlistId, position) {
+    var xhr = new OrigXHR();
+    xhr.open('POST', KODI_HOST + '/jsonrpc');
+    try { xhr.setRequestHeader('Authorization', KODI_AUTH); } catch (_) {}
+    try { xhr.setRequestHeader('Content-Type', 'application/json'); } catch (_) {}
+    xhr.onerror = function () {
+      try { dbg.send('localplay.error', 'Playlist.GetItems network error'); } catch (_) {}
+    };
+    xhr.onload = function () {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        var items = resp && resp.result && resp.result.items;
+        if (!items || !items.length) {
+          dbg.send('localplay.error', { msg: 'playlist empty', resp: resp });
+          return;
+        }
+        var pick = items[position] || items[0];
+        if (!pick || !pick.file) {
+          dbg.send('localplay.error', { msg: 'no file in playlist entry', pos: position, items: items.length });
+          return;
+        }
+        try { dbg.send('localplay.resolved', { from: 'playlist', file: pick.file }); } catch (_) {}
+        triggerLocalPlay(pick.file);
+      } catch (e) {
+        try { dbg.send('localplay.error', { stage: 'parse', msg: e.message }); } catch (_) {}
+      }
+    };
+    xhr.send(JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'Playlist.GetItems',
+      params: [playlistId, ['file']],
+      id: 'tz-resolvepl-' + Date.now()
+    }));
   }
 
   function triggerLocalPlay(file) {
@@ -801,6 +846,85 @@
       console.warn('[tizen-bootstrap] service worker registration failed:', err);
     });
   }
+
+  // --- Image / fanart auth via DOM observation --------------------------
+  // The Service Worker plan from Phase 1 doesn't work on Tizen because the
+  // .wgt is served as file://, which doesn't permit SW registration. So
+  // every <img src="/image/..."> on a file:// page resolves to
+  // file:///image/... and 404s. We can't put a header on <img> requests
+  // either.
+  //
+  // Workaround: userinfo URLs. AVPlay already does this for media; we do
+  // the same for images by intercepting <img> elements at the DOM layer.
+  // The TV's WebKit (Chromium 56-ish on Tizen 5) still honours
+  // http://user:pass@host:port/... for subresource loads.
+  //
+  // We watch body for:
+  //   - new <img> elements (and any imgs inside subtrees being added)
+  //   - existing <img>s whose src attribute changes
+  // and rewrite any /image/... or image/... src to absolute http://
+  // with userinfo. Already-rewritten and absolute URLs pass through.
+  //
+  // Doesn't handle CSS background-image: url(...) — Chorus2 uses that
+  // for thumbnails. If those break we'll add a second pass for inline
+  // style/computed-style observation. The Marionette templates we've
+  // looked at use <img src> for most artwork.
+  (function installImageAuth() {
+    if (typeof MutationObserver !== 'function') return;
+
+    function rewrite(src) {
+      if (!src) return src;
+      if (/^(https?|data|blob|file):/i.test(src)) return src;
+      var clean = src.charAt(0) === '/' ? src.slice(1) : src;
+      if (clean.indexOf('image/') !== 0) return src;
+      var u = encodeURIComponent(cfg.username || '');
+      var p = encodeURIComponent(cfg.password || '');
+      return 'http://' + u + ':' + p + '@' + cfg.host + ':' + cfg.port + '/' + clean;
+    }
+
+    function patchImg(img) {
+      if (!img || img.tagName !== 'IMG') return;
+      var src = img.getAttribute('src');
+      var newSrc = rewrite(src);
+      if (newSrc !== src) img.setAttribute('src', newSrc);
+    }
+
+    function patchSubtree(root) {
+      if (!root || root.nodeType !== 1) return;
+      if (root.tagName === 'IMG') {
+        patchImg(root);
+        return;
+      }
+      if (!root.querySelectorAll) return;
+      var imgs = root.querySelectorAll('img');
+      for (var i = 0; i < imgs.length; i++) patchImg(imgs[i]);
+    }
+
+    function start() {
+      patchSubtree(document.body); // catch initial render
+      var obs = new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var m = muts[i];
+          if (m.type === 'childList' && m.addedNodes) {
+            for (var j = 0; j < m.addedNodes.length; j++) patchSubtree(m.addedNodes[j]);
+          } else if (m.type === 'attributes' &&
+                     m.attributeName === 'src' &&
+                     m.target && m.target.tagName === 'IMG') {
+            patchImg(m.target);
+          }
+        }
+      });
+      obs.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['src']
+      });
+    }
+
+    if (document.body) start();
+    else document.addEventListener('DOMContentLoaded', start);
+  })();
 
   // Late patches that depend on Chorus2's globals being available are
   // wired in Phase 3 (AVPlay swap touches Api.Files::downloadPath and

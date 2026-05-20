@@ -69,10 +69,42 @@
     console.log('[videoPlayer] resolved abs url', absUrl);
     console.log('[videoPlayer] auth-embedded url', withAuth.replace(/:[^@/]+@/, ':<pw>@'));
 
+    // Detect audio-only files by extension. AVPlay still plays them
+    // through its video pipeline (so audio works) but with no video
+    // surface — that produced a black screen in the user's first test.
+    // For audio-only we paint a "now playing" card instead.
+    var AUDIO_EXT = /\.(mp3|m4a|m4b|aac|aif|aiff|ape|dts|flac|ogg|opus|wav|wma|wv)(\?|$)/i;
+    var isAudioOnly = AUDIO_EXT.test(src);
+    if (isAudioOnly) {
+        showAudioCard(src);
+        console.log('[videoPlayer] audio-only mode, showing now-playing card');
+    }
+
     var hasAvplay = typeof webapis !== 'undefined' &&
                     webapis.avplay &&
                     typeof webapis.avplay.open === 'function';
     console.log('[videoPlayer] has AVPlay?', hasAvplay);
+
+    function showAudioCard(srcPath) {
+        document.body.classList.add('tz-audio-only');
+        var card = document.createElement('div');
+        card.className = 'tz-audio-card';
+        // Pull a display name from the URL. Strip query string and any
+        // url-encoded path separators so we end up with just the
+        // filename portion.
+        var name = (srcPath || '').split(/[?#]/)[0];
+        try { name = decodeURIComponent(name); } catch (_) {}
+        name = name.split(/[\\/]/).pop() || 'Audio';
+        card.innerHTML =
+            '<div class="tz-audio-icon">' +
+              '<svg width="80" height="80" viewBox="0 0 24 24">' +
+                '<path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z" fill="#4ea1ff"/>' +
+              '</svg>' +
+            '</div>' +
+            '<div class="tz-audio-title"></div>';
+        card.querySelector('.tz-audio-title').textContent = name;
+        document.body.appendChild(card);
+    }
 
     function safeGetState() {
         try { return webapis.avplay.getState(); }
