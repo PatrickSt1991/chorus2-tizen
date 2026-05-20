@@ -368,6 +368,30 @@
   function loadChorus2() {
     var s = document.createElement('script');
     s.src = 'js/kodi-webinterface.js';
+    s.onload = function () {
+      // Force the default player to 'local'. Chorus2 picks 'local' vs
+      // 'kodi' via:
+      //   getDefaultPlayer() -> config.getLocal('defaultPlayer', 'auto')
+      //   if 'auto', fall back to config.get('app','state:lastplayer','kodi')
+      // Without intervention the chain resolves to 'kodi', which routes
+      // "play" through Player.Open — i.e. Kodi-server-side playback on
+      // whatever screen Kodi is connected to, NOT the TV running this
+      // app. We want the local flow:
+      //   command:video:play
+      //   -> Local.VideoPlayer::videoStream
+      //   -> Files.PrepareDownload (gets vfs/<encoded>)
+      //   -> open videoPlayer.html?src=<absolute URL>
+      //   -> our AVPlay player streams it on the TV.
+      //
+      // config.static is set in app.coffee when this script runs, so we
+      // mutate it now — before Chorus2's $(document).ready handlers fire
+      // initKodiState which reads getDefaultPlayer() exactly once.
+      try {
+        if (window.config && window.config.static) {
+          window.config.static.defaultPlayer = 'local';
+        }
+      } catch (_) {}
+    };
     document.body.appendChild(s);
   }
 
