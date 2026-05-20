@@ -170,24 +170,53 @@ jobs:
         with:
           tag_name: 'tizen-v${{ steps.tag.outputs.version }}-${{ steps.tag.outputs.date_tag }}'
           name: 'Chorus2 Tizen v${{ steps.tag.outputs.version }} (${{ steps.tag.outputs.date_pretty }})'
-          files: release/Chorus2-Tizen.wgt
+          files: |
+            release/Chorus2-Tizen.wgt
+            tools/debug-server.py
           body: |
             ## Chorus2 for Samsung Tizen TV
 
             Built ${{ steps.tag.outputs.date_pretty }} from chorus2 ${{ steps.tag.outputs.version }}.
 
-            Wraps the Chorus2 Kodi web interface in a Tizen `.wgt` and patches
-            URL/auth handling so it can talk to a Kodi instance elsewhere on
-            your LAN. Video playback uses Tizen AVPlay (Phase 3 onward).
+            Wraps the Chorus2 Kodi web interface in a Tizen `.wgt` and routes
+            video playback through Tizen AVPlay so files stream and decode on
+            the TV itself, not on the Kodi server.
 
             ### Install
-            1. Enable Developer Mode on your Samsung TV.
-            2. Sideload the `.wgt` via Tizen Studio or `sdb install`.
-            3. On first launch, enter your Kodi host, port, username, and password.
+
+            1. Enable **Developer Mode** on your Samsung TV
+               ([instructions](https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/tv-device.html)).
+            2. Sideload `Chorus2-Tizen.wgt` (Tizen Studio's Device Manager, or
+               `sdb install Chorus2-Tizen.wgt`).
+            3. Launch the app. On first run a setup screen asks for your
+               Kodi host/port, username and password — it pings Kodi before
+               continuing, so wrong credentials fail fast.
+
+            ### Optional: live debug log
+
+            If anything misbehaves, the app can stream `console.log`,
+            errors, click events and XHR responses to a dev-machine
+            terminal over WebSocket. Two steps:
+
+            1. Grab `debug-server.py` (also attached to this release) and
+               run it on a machine the TV can reach:
+               ```
+               python3 debug-server.py
+               ```
+               Stdlib-only — no `pip install` needed. Default port 9999.
+               If Windows Firewall pops up, allow the connection on
+               Private networks.
+            2. On the TV's first-launch setup screen, fill in the
+               **Debug host** field as `<your-pc-ip>:9999`, e.g.
+               `192.168.1.20:9999`. Press Connect.
+
+            Everything the app does will scroll past in the terminal,
+            colour-coded by event type. Leave the Debug host field blank
+            to keep things quiet.
 
             ### Build details
             - chorus2 base: ${{ steps.tag.outputs.version }}
             - Branch: tizen
             - Commit: ${{ github.sha }}
           draft: false
-          prerelease: true
+          prerelease: false

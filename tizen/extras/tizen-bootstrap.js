@@ -97,26 +97,23 @@
       '</p>' +
       '<div style="height:1px;background:#232c3d;margin:0 0 24px"></div>' +
 
-      // TEMP: while we're debugging on real hardware the form is
-      // pre-filled with Patrick's dev values so a re-install is one-tap.
-      // Clear these defaults (back to '' / '8080' / 'kodi' / '' / '')
-      // before shipping anything publicly. Tracked at the end of the
-      // commit message that introduced this block.
       '<form id="tz-setup" autocomplete="off">' +
         // Server section
         section('Server') +
-        field('host',     'Kodi host or IP', existing && existing.host || '192.168.2.22', 'text',   'e.g. 192.168.1.50') +
-        field('port',     'HTTP port',       existing && existing.port || '8080',          'number', '8080') +
+        field('host',     'Kodi host or IP', existing && existing.host || '',     'text',   'e.g. 192.168.1.50') +
+        field('port',     'HTTP port',       existing && existing.port || '8080', 'number', '8080') +
 
         // Auth section
         section('Authentication', '32px') +
         field('username', 'Username',        existing && existing.username || 'kodi', 'text',     'kodi') +
-        field('password', 'Password',        existing && existing.password || 'kodi', 'password', 'Your Kodi password') +
+        field('password', 'Password',        existing && existing.password || '',     'password', 'Your Kodi password') +
 
         // Debug section (optional). When set, the app streams logs to a
-        // WebSocket on this host:port — pair with tools/debug-server.py.
+        // WebSocket on this host:port — pair with tools/debug-server.py
+        // from the repo. See the README's "Debug" section for how to
+        // run the listener.
         section('Debug log (optional)', '32px') +
-        field('debug',    'Debug host', existing && existing.debug || '192.168.2.22:9999', 'text', 'e.g. 192.168.2.20:9999 (leave blank to disable)') +
+        field('debug',    'Debug host', existing && existing.debug || '', 'text', 'e.g. 192.168.2.20:9999 (leave blank to disable)') +
 
         // Actions — no CSS gap; margin-left on the second button instead
         '<div style="display:flex;margin-top:32px">' +

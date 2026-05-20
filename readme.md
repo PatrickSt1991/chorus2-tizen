@@ -129,7 +129,57 @@ TIZEN_PROFILE=Chorus2 \
 runs `build.sh --no-package`, drives `tizen package` through an
 expect-script (the CLI prompts for cert passwords interactively), then
 uploads the signed `.wgt` as both a workflow artifact and a GitHub
-prerelease. Every push to `tizen` produces a fresh build.
+release. Every push to `tizen` produces a fresh build.
+
+---
+
+## Debug
+
+If something misbehaves on the TV, the app can stream every
+`console.log`, error, click and XHR response to a dev-machine terminal
+over WebSocket. The catch: there's no DevTools window on the TV, so this
+is how we look behind the curtain.
+
+**1. Run the listener on a machine the TV can reach.**
+The script is at [`tools/debug-server.py`](tools/debug-server.py) in
+this repo (and attached to every Release). Stdlib-only — no
+`pip install`. From any shell:
+
+```bash
+python3 tools/debug-server.py            # default port 9999
+python3 tools/debug-server.py 9099       # custom port
+python3 tools/debug-server.py 9999 -q    # no colour, plain text
+```
+
+On Windows + WSL, prefer running it from PowerShell rather than WSL —
+PowerShell binds to the host IP the TV can see directly; WSL2 has its
+own internal network and needs port-forwarding. If Windows Firewall
+prompts you, allow the connection on Private networks.
+
+**2. Point the TV at it.**
+On the app's first-launch setup screen (or after a Reset), fill in the
+**Debug host** field as `<your-pc-ip>:9999` — e.g.
+`192.168.1.20:9999`. Press Connect.
+
+Leave the field blank to disable. The app makes one WebSocket
+connection on launch; if the listener isn't running there's no harm
+done (the app retries silently and otherwise behaves normally).
+
+**3. Watch the terminal.**
+You'll see colour-coded events:
+
+```
+14:35:46  click           DIV.mdi play   "Play"   @(852,144)
+14:35:46  net.xhr         POST .../Playlist.Insert  -> 200
+14:35:47  localplay.intercept  {"kind":"playlist", "pid":1, "pos":1}
+14:35:47  localplay.resolved   {"file":"…jellyfin2samsung.mp4"}
+14:35:47  localplay.navigate   videoPlayer.html?src=…
+14:35:48  [avplay] prepareAsync success READY
+14:35:48  [avplay] play() called, state PLAYING
+```
+
+If you hit a bug, the exact event sequence makes it possible to
+reproduce locally and fix without a lot of guess-and-check.
 
 ---
 
