@@ -108,6 +108,11 @@
         field('username', 'Username',        existing && existing.username || 'kodi', 'text',     'kodi') +
         field('password', 'Password',        existing && existing.password || '',     'password', 'Your Kodi password') +
 
+        // Debug section (optional). When set, the app streams logs to a
+        // WebSocket on this host:port — pair with tools/debug-server.py.
+        section('Debug log (optional)', '32px') +
+        field('debug',    'Debug host', existing && existing.debug || '', 'text', 'e.g. 192.168.2.20:9999 (leave blank to disable)') +
+
         // Actions — no CSS gap; margin-left on the second button instead
         '<div style="display:flex;margin-top:32px">' +
           button('save',  'Connect',  true) +
@@ -146,7 +151,7 @@
     form.host.focus();
 
     function focusables() {
-      return [form.host, form.port, form.username, form.password,
+      return [form.host, form.port, form.username, form.password, form.debug,
               document.getElementById('tz-save'),
               document.getElementById('tz-reset')];
     }
@@ -168,7 +173,13 @@
       switch (e.keyCode) {
         case 38: shiftFocus(-1); e.preventDefault(); break; // Up
         case 40: shiftFocus(+1); e.preventDefault(); break; // Down
-        case 13: // OK / Enter — advance from early input, fall through on password/buttons
+        case 13: // OK / Enter
+          // Advance from any non-last input. The list is
+          //   [host, port, username, password, debug, save, reset]
+          // — the last 3 are debug + save + reset. Enter on debug or on
+          // any button falls through to native (debug field submits the
+          // form, buttons activate). Enter on host/port/username/password
+          // advances to the next input.
           if (isInput && idx < list.length - 3) {
             shiftFocus(+1);
             e.preventDefault();
@@ -284,7 +295,8 @@
       host: form.host.value.trim(),
       port: form.port.value.trim() || '8080',
       username: form.username.value,
-      password: form.password.value
+      password: form.password.value,
+      debug: form.debug ? form.debug.value.trim() : ''
     };
   }
 
@@ -424,6 +436,109 @@
 
   // --- Config is present: wire everything up before Chorus2 loads. ---
 
+  // Debug WebSocket telemetry. When cfg.debug is set (e.g. "192.168.2.20:9999"),
+  // open a WebSocket to that host and stream console output, errors,
+  // click events, and XHR/fetch responses. Pair with tools/debug-server.py
+  // in the repo. Telemetry is fire-and-forget — failed connects retry on a
+  // timer; nothing breaks if the dev machine isn't listening.
+  var dbg = (function () {
+    var noop = function () {};
+    var sink = { send: noop, click: noop, net: noop };
+    if (!cfg.debug) return sink;
+
+    var url = String(cfg.debug);
+    if (!/^wss?:\/\//i.test(url)) url = 'ws:' + (url.indexOf('//') === 0 ? '' : '//') + url;
+
+    var ws = null;
+    var queue = [];
+    var WS = window.__TIZEN_OrigWebSocket || window.WebSocket;
+
+    function open() {
+      try {
+        ws = new WS(url);
+        ws.onopen = function () {
+          send('hello', { ua: navigator.userAgent, url: location.href });
+          while (queue.length) ws.send(queue.shift());
+        };
+        ws.onclose = function () { ws = null; setTimeout(open, 2000); };
+        ws.onerror = function () { try { ws.close(); } catch (_) {} };
+      } catch (e) {
+        setTimeout(open, 2000);
+      }
+    }
+    open();
+
+    function send(type, data) {
+      var msg;
+      try {
+        msg = JSON.stringify({ t: Date.now(), type: type, data: data });
+      } catch (e) {
+        msg = JSON.stringify({ t: Date.now(), type: type, data: '<unserialisable>' });
+      }
+      if (ws && ws.readyState === 1) {
+        try { ws.send(msg); } catch (_) { queue.push(msg); }
+      } else {
+        // Cap the offline queue so we don't grow without bound if the
+        // dev server never comes up.
+        if (queue.length < 500) queue.push(msg);
+      }
+    }
+
+    function flatten(args) {
+      var out = [];
+      for (var i = 0; i < args.length; i++) {
+        var a = args[i];
+        if (a instanceof Error) out.push(a.stack || a.message);
+        else if (a && typeof a === 'object') {
+          try { out.push(JSON.parse(JSON.stringify(a))); }
+          catch (_) { out.push(String(a)); }
+        } else out.push(a);
+      }
+      return out;
+    }
+
+    // Pipe console.{log,info,warn,error,debug}
+    ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
+      var orig = console[level] ? console[level].bind(console) : function () {};
+      console[level] = function () {
+        try { send('console.' + level, flatten(arguments)); } catch (_) {}
+        try { orig.apply(null, arguments); } catch (_) {}
+      };
+    });
+
+    // Uncaught script errors
+    window.addEventListener('error', function (e) {
+      send('error', {
+        msg: e.message, src: e.filename, line: e.lineno, col: e.colno,
+        stack: e.error && e.error.stack
+      });
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      send('unhandledrejection', {
+        reason: String(e.reason && (e.reason.stack || e.reason.message || e.reason))
+      });
+    });
+
+    // Capture-phase click logging — both real clicks and our synthetic
+    // cursor clicks land here.
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.tagName) return;
+      send('click', {
+        tag: t.tagName,
+        id: t.id || '',
+        cls: (t.className || '').toString().slice(0, 200),
+        text: (t.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        x: e.clientX, y: e.clientY
+      });
+    }, true);
+
+    return {
+      send: send,
+      net: function (kind, info) { send('net.' + kind, info); }
+    };
+  })();
+
   var KODI_HOST = 'http://' + cfg.host + ':' + cfg.port;
   var KODI_AUTH = 'Basic ' + btoa(cfg.username + ':' + cfg.password);
 
@@ -461,14 +576,37 @@
   function PatchedXHR() {
     var xhr = new OrigXHR();
     var origOpen = xhr.open;
+    var origSend = xhr.send;
+    var _method, _url, _body;
     xhr.open = function (method, url) {
       if (isLocalish(url)) url = resolveUrl(url);
+      _method = method; _url = url;
       var args = [method, url].concat(Array.prototype.slice.call(arguments, 2));
       var ret = origOpen.apply(this, args);
       try {
         this.setRequestHeader('Authorization', KODI_AUTH);
       } catch (e) { /* setRequestHeader can fail on certain states; ignore */ }
       return ret;
+    };
+    xhr.send = function (body) {
+      _body = body;
+      // Log on completion so we see the result, not just the request.
+      var self = this;
+      this.addEventListener('loadend', function () {
+        // Trim payloads — JSON-RPC method names tell us most of what we
+        // need; full Chorus2 bundle responses would flood the channel.
+        var snip = function (s) {
+          if (s == null) return null;
+          s = String(s);
+          return s.length > 400 ? s.slice(0, 400) + '…[+' + (s.length - 400) + ']' : s;
+        };
+        dbg.net('xhr', {
+          method: _method, url: _url, status: self.status,
+          req: snip(_body),
+          resp: snip(self.responseText)
+        });
+      });
+      return origSend.apply(this, arguments);
     };
     return xhr;
   }
@@ -496,17 +634,33 @@
   // Chorus2 builds ws URLs from config.socketsHost + ':' + socketsPort.
   // Kodi's port 9090 JSON-RPC channel is unauthenticated, so we only need
   // to rewrite host/port — no userinfo needed.
+  //
+  // IMPORTANT: only rewrite WebSocket URLs that target same-origin /
+  // localhost / our own host. External WS connections (e.g. the debug
+  // log stream below) must pass through unchanged.
   if (typeof window.WebSocket === 'function') {
     var OrigWS = window.WebSocket;
+    // Expose the original constructor so the debug module can bypass
+    // the patch without classifying as a "Chorus2" WebSocket.
+    window.__TIZEN_OrigWebSocket = OrigWS;
+
+    function isChorus2WS(hostname) {
+      return hostname === '' ||
+             hostname === 'localhost' ||
+             hostname === '127.0.0.1' ||
+             hostname === location.hostname;
+    }
+
     function PatchedWS(url, protocols) {
       try {
         var u = new URL(url, location.href);
-        // Rewrite to the configured Kodi host on its WS port. Chorus2 also
-        // exposes socketsPort in settings; default 9090.
-        u.protocol = 'ws:';
-        u.hostname = cfg.host;
-        if (!u.port || u.port === '0') u.port = '9090';
-        url = u.toString();
+        if (isChorus2WS(u.hostname)) {
+          u.protocol = 'ws:';
+          u.hostname = cfg.host;
+          if (!u.port || u.port === '0') u.port = '9090';
+          url = u.toString();
+        }
+        // else: external host (debug, etc.) — pass through.
       } catch (e) { /* malformed URL — pass through */ }
       return protocols ? new OrigWS(url, protocols) : new OrigWS(url);
     }
