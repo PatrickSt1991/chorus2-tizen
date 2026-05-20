@@ -26,6 +26,28 @@ body.tizen-avplay-active video {
     display: none !important;
 }
 
+/* --- Play overlays always visible on TV ----------------------------------- */
+/* Chorus2 hides its .play overlay (the triangle icon in the corner of a
+   thumbnail / list-item) until :hover. There is no hover on a TV, so the
+   user can't see where the play target is. Force the overlay visible at
+   reduced opacity, full-opacity when its container is hovered or focused
+   (so our virtual cursor's mousemove dispatch still gets a clear cue). */
+.thumb .play,
+.thumb .mdi.play,
+.item .play,
+.item-list-item .play,
+li[data-id] .play {
+    display: block !important;
+    opacity: .55 !important;
+}
+.thumb:hover .play,
+.thumb:focus .play,
+.item:hover .play,
+.item-list-item:hover .play,
+li[data-id]:hover .play {
+    opacity: 1 !important;
+}
+
 /* --- Setup screen + bootstrap UI ------------------------------------------ */
 /* The setup screen already inlines its own styles, but the focus rule below
    applies to it too. */

@@ -726,6 +726,31 @@
   // including its own remote-key handling.
   if (SKIP_INDEX_BOOT) return;
 
+  // --- Click delegation for hover-only play overlays --------------------
+  // Chorus2's file/movie/episode rows bind their play action to a
+  // <div class="mdi play"> overlay that's hidden until :hover. On a TV
+  // there's no hover; the user's cursor lands on the parent .thumb
+  // (or .title) and the click does nothing. Re-fire on the inner .play
+  // so the whole tile becomes a play target.
+  //
+  // From the user's debug log we can see clicks landing on DIV.thumb
+  // and DIV.title with no Files.PrepareDownload following — exactly
+  // because the bound selector is just .play.
+  var _redispatching = false;
+  document.addEventListener('click', function (e) {
+    if (_redispatching) return;
+    var t = e.target;
+    if (!t || !t.closest) return;
+    // Already a play click? leave it.
+    if (t.closest('.play')) return;
+    var row = t.closest('.thumb, .item, .item-list-item, li[data-id]');
+    if (!row) return;
+    var play = row.querySelector('.play, .mdi.play, .mdi-action-play');
+    if (!play) return;
+    _redispatching = true;
+    try { play.click(); } finally { _redispatching = false; }
+  }, false);
+
   // --- TV remote keys + spatial navigation (Phase 4) --------------------
   // Tizen 5 does not provide built-in spatial navigation for web apps, so
   // we implement it manually. Arrow keys score every visible focusable
