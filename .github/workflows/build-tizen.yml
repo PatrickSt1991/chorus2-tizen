@@ -186,8 +186,8 @@ jobs:
 
             1. Enable **Developer Mode** on your Samsung TV
                ([instructions](https://developer.samsung.com/smarttv/develop/getting-started/using-sdk/tv-device.html)).
-            2. Sideload `Chorus2-Tizen.wgt` (Tizen Studio's Device Manager, or
-               `sdb install Chorus2-Tizen.wgt`).
+             via [Jellyfin2Samsung](https://github.com/Jellyfin2Samsung/Samsung-Jellyfin-Installer/releases/latest), Tizen Studio or `sdb`.
+            2. Sideload `Chorus2-Tizen.wgt` via [Jellyfin2Samsung](https://github.com/Jellyfin2Samsung/Samsung-Jellyfin-Installer/releases/latest), Tizen Studio or `sdb`.
             3. Launch the app. On first run a setup screen asks for your
                Kodi host/port, username and password — it pings Kodi before
                continuing, so wrong credentials fail fast.
