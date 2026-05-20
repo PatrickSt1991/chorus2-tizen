@@ -77,10 +77,16 @@ li[data-id]:hover .play {
 
 /* --- videoPlayer.html ----------------------------------------------------- */
 
+/* CRITICAL: the body must be transparent so AVPlay's hardware video
+   plane (which renders BEHIND the DOM) shows through. Painting any
+   opaque colour here covers the video entirely — the first on-device
+   test showed audio playing but a black screen because the body used
+   to be `background:#000`. The default <html> background is already
+   transparent in Chromium so we don't need to touch that. */
 .tz-video-page {
     margin: 0;
     padding: 0;
-    background: #000;
+    background: transparent !important;
     color: #e6e6e6;
     font: 18px system-ui, Arial, sans-serif;
     height: 100vh;
@@ -88,7 +94,10 @@ li[data-id]:hover .play {
 }
 
 .tz-video-page #tizen-avplay-surface {
-    /* The shim "video" lives here; AVPlay renders behind. */
+    /* AVPlay renders into a hardware overlay positioned by
+       getBoundingClientRect() of this element. Stays transparent so
+       the video plane shows through. */
+    background: transparent !important;
 }
 
 .tz-video-controls {
