@@ -65,10 +65,19 @@
     // relative `vfs/...?ts=...`. Absolutize via the bootstrap's resolver.
     var absUrl = (window.TIZEN_RESOLVE_URL || function (u) { return u; })(src);
     var withAuth = embedBasicAuth(absUrl);
+    console.log('[videoPlayer] src param', src);
+    console.log('[videoPlayer] resolved abs url', absUrl);
+    console.log('[videoPlayer] auth-embedded url', withAuth.replace(/:[^@/]+@/, ':<pw>@'));
 
     var hasAvplay = typeof webapis !== 'undefined' &&
                     webapis.avplay &&
                     typeof webapis.avplay.open === 'function';
+    console.log('[videoPlayer] has AVPlay?', hasAvplay);
+
+    function safeGetState() {
+        try { return webapis.avplay.getState(); }
+        catch (e) { return '<getState threw: ' + (e && e.message || e) + '>'; }
+    }
 
     if (hasAvplay) {
         playWithAvplay(withAuth);
@@ -81,28 +90,47 @@
     function playWithAvplay(url) {
         var surface = document.getElementById('tizen-avplay-surface');
         document.body.classList.add('tizen-avplay-active');
+        console.log('[avplay] open url', url);
 
         try {
             webapis.avplay.open(url);
         } catch (e) {
+            console.error('[avplay] open failed', e && (e.message || e));
             showError('AVPlay open failed', String(e && e.message || e));
             return;
         }
+        console.log('[avplay] state after open', safeGetState());
 
         try {
             webapis.avplay.setListener({
-                onbufferingstart:    function () { setOverlay('Buffering…'); },
-                onbufferingprogress: function (p) { setOverlay('Buffering… ' + p + '%'); },
-                onbufferingcomplete: function () { setOverlay(''); },
-                oncurrentplaytime:   function (ms) { onTime(ms); },
-                onstreamcompleted:   function () { onCompleted(); },
-                onerror:             function (e) {
-                    showError('Playback error', JSON.stringify(e));
+                onbufferingstart: function () {
+                    console.log('[avplay] buffering start');
+                    setOverlay('Buffering…');
                 },
-                onevent:             function () { /* informational events; ignore */ }
+                onbufferingprogress: function (p) {
+                    console.log('[avplay] buffering', p + '%');
+                    setOverlay('Buffering… ' + p + '%');
+                },
+                onbufferingcomplete: function () {
+                    console.log('[avplay] buffering complete');
+                    setOverlay('');
+                },
+                oncurrentplaytime: function (ms) { onTime(ms); },
+                onstreamcompleted: function () {
+                    console.log('[avplay] stream completed');
+                    onCompleted();
+                },
+                onerror: function (e) {
+                    var msg = JSON.stringify(e);
+                    console.error('[avplay] runtime error', msg);
+                    showError('Playback error', msg);
+                },
+                onevent: function (type, data) {
+                    console.log('[avplay] event', type, data);
+                }
             });
         } catch (e) {
-            console.warn('[videoPlayer] setListener failed', e);
+            console.warn('[videoPlayer] setListener failed', e && (e.message || e));
         }
 
         // For HEVC and 4K, hint the player.
@@ -111,26 +139,40 @@
         positionSurface();
         window.addEventListener('resize', positionSurface);
 
-        webapis.avplay.prepareAsync(
-            function onPrepared() {
-                try {
-                    webapis.avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
-                } catch (_) {}
-                try {
-                    AvplayState.duration = webapis.avplay.getDuration() || 0;
-                    updateTimeLabel();
-                    webapis.avplay.play();
-                    AvplayState.playing = true;
-                    setPlayLabel();
-                    setOverlay('');
-                } catch (e) {
-                    showError('AVPlay play() failed', String(e && e.message || e));
+        console.log('[avplay] prepareAsync start');
+        try {
+            webapis.avplay.prepareAsync(
+                function onPrepared() {
+                    console.log('[avplay] prepareAsync success', safeGetState());
+                    try {
+                        webapis.avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+                    } catch (e) {
+                        console.warn('[avplay] setDisplayMethod failed', e && (e.message || e));
+                    }
+                    try {
+                        AvplayState.duration = webapis.avplay.getDuration() || 0;
+                        console.log('[avplay] duration', AvplayState.duration);
+                        updateTimeLabel();
+                        webapis.avplay.play();
+                        console.log('[avplay] play() called, state', safeGetState());
+                        AvplayState.playing = true;
+                        setPlayLabel();
+                        setOverlay('');
+                    } catch (e) {
+                        console.error('[avplay] play() failed', e && (e.message || e));
+                        showError('AVPlay play() failed', String(e && e.message || e));
+                    }
+                },
+                function onPrepareFail(err) {
+                    var msg = (err && (err.message || err.name)) || JSON.stringify(err);
+                    console.error('[avplay] prepareAsync failed', msg);
+                    showError('AVPlay prepare failed', msg);
                 }
-            },
-            function onPrepareFail(err) {
-                showError('AVPlay prepare failed', JSON.stringify(err));
-            }
-        );
+            );
+        } catch (e) {
+            console.error('[avplay] prepareAsync threw synchronously', e && (e.message || e));
+            showError('AVPlay prepareAsync threw', String(e && e.message || e));
+        }
 
         bindControls({
             togglePlay: function () {
