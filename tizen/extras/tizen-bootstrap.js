@@ -97,21 +97,26 @@
       '</p>' +
       '<div style="height:1px;background:#232c3d;margin:0 0 24px"></div>' +
 
+      // TEMP: while we're debugging on real hardware the form is
+      // pre-filled with Patrick's dev values so a re-install is one-tap.
+      // Clear these defaults (back to '' / '8080' / 'kodi' / '' / '')
+      // before shipping anything publicly. Tracked at the end of the
+      // commit message that introduced this block.
       '<form id="tz-setup" autocomplete="off">' +
         // Server section
         section('Server') +
-        field('host',     'Kodi host or IP', existing && existing.host || '',          'text',   'e.g. 192.168.1.50') +
-        field('port',     'HTTP port',       existing && existing.port || '8080',      'number', '8080') +
+        field('host',     'Kodi host or IP', existing && existing.host || '192.168.2.22', 'text',   'e.g. 192.168.1.50') +
+        field('port',     'HTTP port',       existing && existing.port || '8080',          'number', '8080') +
 
         // Auth section
         section('Authentication', '32px') +
         field('username', 'Username',        existing && existing.username || 'kodi', 'text',     'kodi') +
-        field('password', 'Password',        existing && existing.password || '',     'password', 'Your Kodi password') +
+        field('password', 'Password',        existing && existing.password || 'kodi', 'password', 'Your Kodi password') +
 
         // Debug section (optional). When set, the app streams logs to a
         // WebSocket on this host:port — pair with tools/debug-server.py.
         section('Debug log (optional)', '32px') +
-        field('debug',    'Debug host', existing && existing.debug || '', 'text', 'e.g. 192.168.2.20:9999 (leave blank to disable)') +
+        field('debug',    'Debug host', existing && existing.debug || '192.168.2.22:9999', 'text', 'e.g. 192.168.2.20:9999 (leave blank to disable)') +
 
         // Actions — no CSS gap; margin-left on the second button instead
         '<div style="display:flex;margin-top:32px">' +
@@ -652,6 +657,16 @@
     }
 
     function PatchedWS(url, protocols) {
+      // Edge case: on Tizen the page is served as file:///, so
+      // location.hostname is the empty string. Chorus2 builds its
+      // notifications URL from config.socketsHost which defaults to
+      // location.hostname — producing "ws://:9090/jsonrpc?kodi" with
+      // an empty host. That's unparseable by `new URL()` AND rejected
+      // by `new WebSocket()`. Rewrite it before parsing so we have a
+      // valid URL to work with.
+      if (/^wss?:\/\/:\d/.test(url)) {
+        url = url.replace(/^(wss?:\/\/):/, '$1' + cfg.host + ':');
+      }
       try {
         var u = new URL(url, location.href);
         if (isChorus2WS(u.hostname)) {
@@ -660,8 +675,9 @@
           if (!u.port || u.port === '0') u.port = '9090';
           url = u.toString();
         }
-        // else: external host (debug, etc.) — pass through.
-      } catch (e) { /* malformed URL — pass through */ }
+        // else: external host (debug WS, our pre-fixed Kodi URL, etc.)
+        // — pass through.
+      } catch (e) { /* still malformed — pass through */ }
       return protocols ? new OrigWS(url, protocols) : new OrigWS(url);
     }
     PatchedWS.prototype = OrigWS.prototype;
