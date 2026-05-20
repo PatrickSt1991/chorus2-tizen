@@ -576,6 +576,85 @@
   }
   window.TIZEN_RESOLVE_URL = resolveUrl;
 
+  // --- Player.Open interception ---------------------------------------
+  // Chorus2's file-browser controller hardcodes `command:kodi:controller`
+  // (src/js/apps/browser/list/list_controller.js.coffee:7), so clicking
+  // play on a video file always triggers a server-side Kodi playback —
+  // ignores our defaultPlayer='local' setting. To route playback to the
+  // TV instead we watch outgoing JSON-RPC, remember the last file added
+  // via Playlist.Insert, and when Player.Open follows we *don't* send
+  // it: we call Files.PrepareDownload ourselves and navigate this
+  // window to videoPlayer.html so AVPlay takes over.
+  var _lastInsertedFile = null;
+
+  function extractCallsFromBody(body) {
+    if (typeof body !== 'string' || !body) return null;
+    var ch = body.charAt(0);
+    if (ch !== '{' && ch !== '[') return null;
+    try {
+      var parsed = JSON.parse(body);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) { return null; }
+  }
+
+  function maybeInterceptPlayerOpen(body) {
+    var calls = extractCallsFromBody(body);
+    if (!calls) return false;
+    var hasPlayerOpen = false;
+    for (var i = 0; i < calls.length; i++) {
+      var c = calls[i];
+      if (!c || !c.method) continue;
+      if (c.method === 'Playlist.Insert' && c.params) {
+        // params: [playlistid, position, {file:...}]
+        var item = c.params[2];
+        if (item && item.file) {
+          _lastInsertedFile = item.file;
+          try { dbg.send('localplay.remember', _lastInsertedFile); } catch (_) {}
+        }
+      } else if (c.method === 'Player.Open') {
+        hasPlayerOpen = true;
+      }
+    }
+    if (!hasPlayerOpen) return false;
+    if (!_lastInsertedFile) return false; // nothing to play locally
+    var file = _lastInsertedFile;
+    _lastInsertedFile = null;
+    triggerLocalPlay(file);
+    return true;
+  }
+
+  function triggerLocalPlay(file) {
+    try { dbg.send('localplay.trigger', { file: file }); } catch (_) {}
+    var xhr = new OrigXHR();
+    xhr.open('POST', KODI_HOST + '/jsonrpc');
+    try { xhr.setRequestHeader('Authorization', KODI_AUTH); } catch (_) {}
+    try { xhr.setRequestHeader('Content-Type', 'application/json'); } catch (_) {}
+    xhr.onerror = function () {
+      try { dbg.send('localplay.error', 'PrepareDownload network error'); } catch (_) {}
+    };
+    xhr.onload = function () {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        var path = resp && resp.result && resp.result.details && resp.result.details.path;
+        if (!path) {
+          dbg.send('localplay.error', { msg: 'PrepareDownload no path', resp: resp });
+          return;
+        }
+        var qs = 'src=' + encodeURIComponent(path) + '&player=html5';
+        try { dbg.send('localplay.navigate', 'videoPlayer.html?' + qs); } catch (_) {}
+        window.location.href = 'videoPlayer.html?' + qs;
+      } catch (e) {
+        try { dbg.send('localplay.error', { msg: e.message, stack: e.stack }); } catch (_) {}
+      }
+    };
+    xhr.send(JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'Files.PrepareDownload',
+      params: [file],
+      id: 'tz-localplay-' + Date.now()
+    }));
+  }
+
   // --- XHR patch ---
   var OrigXHR = window.XMLHttpRequest;
   function PatchedXHR() {
@@ -595,6 +674,11 @@
     };
     xhr.send = function (body) {
       _body = body;
+      // Intercept Player.Open so the file plays on the TV via AVPlay
+      // instead of on the Kodi server's screen. If we take over, don't
+      // call origSend — videoPlayer.html navigation tears down this
+      // page anyway, so the abandoned XHR doesn't matter.
+      if (maybeInterceptPlayerOpen(body)) return;
       // Log on completion so we see the result, not just the request.
       var self = this;
       this.addEventListener('loadend', function () {
