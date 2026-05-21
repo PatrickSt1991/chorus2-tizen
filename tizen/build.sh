@@ -60,6 +60,7 @@ fail() { printf "\033[1;31m[build]\033[0m %s\n" "$*" >&2; exit 1; }
 [[ -f "$EXTRAS/tizen-bootstrap.js" ]] || fail "extras/tizen-bootstrap.js missing"
 [[ -f "$EXTRAS/tizen-sw.js"        ]] || fail "extras/tizen-sw.js missing"
 [[ -f "$EXTRAS/tizen.css"          ]] || fail "extras/tizen.css missing"
+[[ -f "$EXTRAS/tizen-skin.css"     ]] || fail "extras/tizen-skin.css missing"
 [[ -f "$EXTRAS/avplayVideoPlayer.js" ]] || fail "extras/avplayVideoPlayer.js missing"
 
 # --- Prepare build directory -------------------------------------------------
@@ -83,6 +84,7 @@ cp "$WRAPPER/videoPlayer.html" "$BUILD_DIR/videoPlayer.html"
 cp "$EXTRAS/tizen-bootstrap.js" "$BUILD_DIR/tizen-bootstrap.js"
 cp "$EXTRAS/tizen-sw.js"        "$BUILD_DIR/tizen-sw.js"
 cp "$EXTRAS/tizen.css"          "$BUILD_DIR/tizen.css"
+cp "$EXTRAS/tizen-skin.css"     "$BUILD_DIR/tizen-skin.css"
 
 # --- Strip dead weight from dist/ that the TV never uses --------------------
 #
@@ -136,8 +138,18 @@ sed -i "0,/<head>/{s|<head>|<head>\n${INJECT}|}" "$INDEX"
 #    (see tizen-bootstrap.js loadChorus2).
 sed -i '/<script[^>]*src=["'\'']js\/kodi-webinterface\.js["'\''][^>]*>[[:space:]]*<\/script>/d' "$INDEX"
 
-# Sanity: confirm both edits landed.
+# 3) Inject Roboto (Google Fonts) + tizen-skin.css BEFORE </head> so they
+#    load AFTER Chorus2's own stylesheets and win specificity ties without
+#    needing !important on every rule. See chorus2-estuary-reskin-brief.md.
+#    The `&` in the fonts URL must be escaped (\&) because sed treats `&`
+#    as a backreference to the whole match in the replacement.
+SKIN_INJECT='  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700\&display=swap" rel="stylesheet">\n  <link rel="stylesheet" href="tizen-skin.css">'
+sed -i "s|</head>|${SKIN_INJECT}\n</head>|" "$INDEX"
+
+# Sanity: confirm all edits landed.
 grep -q "tizen-bootstrap.js" "$INDEX" || fail "bootstrap injection failed (no tizen-bootstrap.js in built index.html)"
+grep -q "tizen-skin.css"     "$INDEX" || fail "skin injection failed (no tizen-skin.css in built index.html)"
+grep -q "fonts.googleapis"   "$INDEX" || fail "Google Fonts injection failed (no Roboto link in built index.html)"
 if grep -q 'src="js/kodi-webinterface.js"' "$INDEX"; then
     fail "Chorus2 script tag removal failed (still present in built index.html)"
 fi

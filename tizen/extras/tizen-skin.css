@@ -1,0 +1,41 @@
+/*
+ * tizen-skin.css — Estuary-flavoured reskin layered on top of Chorus2.
+ *
+ * Loaded AFTER Chorus2's own stylesheets (build.sh injects the <link>
+ * before </head>) so this file wins specificity ties without needing
+ * !important on every rule. See chorus2-estuary-reskin-brief.md for
+ * the design language and phased rollout.
+ *
+ * Phase 0: design tokens + a single visible verification rule. If the
+ * page background turns Kodi-dark on the TV after sideload, the pipe
+ * is wired and we can start writing real skin in Phase 1.
+ */
+
+:root {
+    /* Surface */
+    --kodi-bg:           #15191e;
+    --kodi-bg-elev:      #1c2128;
+
+    /* Estuary cyan + soft variants */
+    --kodi-accent:       #11e8f3;
+    --kodi-accent-soft:  rgba(17, 232, 243, 0.12);
+    --kodi-accent-glow:  rgba(17, 232, 243, 0.45);
+
+    /* Text */
+    --kodi-text:         #ffffff;
+    --kodi-text-dim:     rgba(255, 255, 255, 0.62);
+    --kodi-text-faint:   rgba(255, 255, 255, 0.38);
+
+    /* Lift / glow */
+    --kodi-shadow-card:  0 12px 28px rgba(0, 0, 0, 0.7);
+    --kodi-shadow-glow:  0 0 60px var(--kodi-accent-glow);
+}
+
+/* --- Phase 0 verification --------------------------------------------------
+   Single rule, !important to defeat Chorus2's base.css `body { background-color:#fff }`
+   that sits before us in the cascade. If you sideload and the page turns
+   dark Kodi-grey, the wiring is correct. We rip out this rule (or just
+   layer the real palette on top) in Phase 1. */
+body {
+    background: var(--kodi-bg) !important;
+}
