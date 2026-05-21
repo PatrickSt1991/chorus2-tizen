@@ -295,7 +295,9 @@ input:focus {
 /* When the home overlay is on, hide Chorus2's chrome behind it. We
    could leave it visible (the overlay's bg covers everything) but
    keeping it hidden avoids stacking glitches if the overlay ever has
-   transparent regions. */
+   transparent regions. pointer-events:none also ensures the cursor's
+   elementFromPoint can't accidentally land on a hidden input (Chorus2's
+   search bar is a focus-grabbing offender). */
 html.tz-home-open #header,
 html.tz-home-open #nav-bar,
 html.tz-home-open #fanart,
@@ -304,6 +306,7 @@ html.tz-home-open #player-wrapper,
 html.tz-home-open #sidebar-two,
 html.tz-home-open #content {
     visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 /* --- Fanart (full-bleed image + Estuary layered gradient) -------------- */

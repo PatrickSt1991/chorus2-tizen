@@ -113,6 +113,24 @@
         var on = isHomeRoute();
         overlay.style.display = on ? 'flex' : 'none';
         document.documentElement.classList.toggle('tz-home-open', on);
+
+        if (on) {
+            // Chorus2 auto-focuses its search input on boot. If it stays
+            // as document.activeElement while our overlay is on, every
+            // arrow / OK press opens the TV's on-screen keyboard (because
+            // the underlying input still receives the key). Blur it.
+            try {
+                var ae = document.activeElement;
+                if (ae && ae !== document.body && ae.blur) ae.blur();
+            } catch (_) {}
+
+            // Bootstrap's virtual cursor sits on top via z-index, but
+            // Tizen WebKit can pick paint order over z-index in some
+            // sibling situations. Re-append the cursor so it's the
+            // last child of <body> — guaranteed paint order on top.
+            var c = document.getElementById('tz-cursor');
+            if (c) document.body.appendChild(c);
+        }
     }
 
     function navigate(hash) {
@@ -182,18 +200,14 @@
         applyVisibility();
         updateKodiInfo();
 
-        // Chorus2's Marionette re-renders can move elements around. Keep
-        // our overlay as the last sibling so it stays on top via natural
-        // stacking.
-        if (typeof MutationObserver === 'function') {
-            var obs = new MutationObserver(function () {
-                if (overlay && overlay.parentNode === document.body &&
-                    document.body.lastChild !== overlay) {
-                    document.body.appendChild(overlay);
-                }
-            });
-            obs.observe(document.body, { childList: true });
-        }
+        // We deliberately do NOT install a MutationObserver to keep the
+        // overlay as last child — it fights with the bootstrap's
+        // virtual-cursor observer (both want to be last sibling) and
+        // can put the cursor on the wrong side of the paint order on
+        // Tizen WebKit. z-index: 100000 on the overlay is enough to
+        // beat Chorus2's chrome; cursor at z-index 2147483647 sits on
+        // top of us; applyVisibility() re-appends the cursor whenever
+        // we show.
     }
 
     function start() {
@@ -206,4 +220,18 @@
     setTimeout(start, 400);
 
     window.addEventListener('hashchange', applyVisibility);
+
+    // Belt-and-braces: while the overlay is open, blur any input
+    // that grabs focus. Chorus2 auto-focuses search on boot and again
+    // on Marionette re-renders — without this, every arrow / OK press
+    // wakes the TV's on-screen keyboard. Bubble phase, runs after
+    // whatever code did the focusing.
+    document.addEventListener('focusin', function (e) {
+        if (!overlay || overlay.style.display === 'none') return;
+        var t = e.target;
+        if (!t || !t.tagName) return;
+        if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') {
+            try { t.blur(); } catch (_) {}
+        }
+    });
 })();
