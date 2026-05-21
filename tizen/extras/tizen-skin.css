@@ -86,35 +86,144 @@ body {
     color: var(--kodi-text);
 }
 
-/* Left icon sidebar — was rgba(255,255,255,0.9), the most jarring
-   "this is a website" tell. Make it Kodi-dark elevated. The logo
-   header inside (#nav-header) keeps its image; we just darken
-   around it. */
+/* ===== Kodi/Estuary-style wide sidebar ================================
+   Chorus2's #nav-bar is a 50px-wide icon column with text labels that
+   are clipped out of view. We widen it to a real Kodi/Estuary sidebar:
+   icon + label per row, dim by default, cyan-accent fill when active,
+   and Kodi-logo branding at top. The other regions (#header, #fanart,
+   #content, #player-wrapper, #sidebar-two) get their `left:` nudged
+   so they don't sit behind the wider sidebar. */
+
+:root {
+    --tz-sidebar-w: 220px;
+}
+
 #nav-bar {
+    width: var(--tz-sidebar-w) !important;
     background: var(--kodi-bg-elev) !important;
     box-shadow: 1px 0 0 0 rgba(255, 255, 255, 0.04) !important;
+    overflow: hidden;
 }
+
+/* Branded header at top of the sidebar — Chorus2 leaves #nav-header as
+   a 50x50 logo box. Restyle it as a Kodi-style header strip with the
+   word mark. */
 #nav-bar #nav-header {
-    background-color: var(--kodi-bg-elev) !important;
-    /* keep the original logo background-image — leave default */
+    width: var(--tz-sidebar-w) !important;
+    height: 60px !important;
+    background: var(--kodi-bg-elev) !important;
+    background-image: none !important;
+    position: relative;
 }
-/* Icon items: dim by default, brighten with cyan glow on hover / focus.
-   Selector list is wide because Chorus2 ships several link shapes inside
-   #nav-bar. Most have an <a> with an icon-bearing <i> inside. */
-#nav-bar a,
-#nav-bar li > a,
-#nav-bar i {
+#nav-bar #nav-header::after {
+    content: 'KODI';
+    position: absolute;
+    top: 50%;
+    left: 20px;
+    transform: translateY(-50%);
+    color: var(--kodi-accent);
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 5px;
+}
+
+/* Nav list — show the previously-clipped <span> labels next to icons.
+   Each <li> is a full-width row, icon left + label right. */
+#nav-bar nav,
+#nav-bar nav ul {
+    width: var(--tz-sidebar-w) !important;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+#nav-bar nav ul li {
+    display: block !important;
+    width: var(--tz-sidebar-w) !important;
+    margin: 0;
+    padding: 0;
+    border-left: 4px solid transparent !important;
+    -webkit-transition: background 0.15s ease, border-color 0.15s ease;
+    transition:         background 0.15s ease, border-color 0.15s ease;
+}
+#nav-bar nav ul li > a {
+    display: flex !important;
+    align-items: center;
+    height: 48px !important;
+    padding: 0 16px 0 18px !important;
     color: var(--kodi-text-dim) !important;
-    -webkit-transition: color 0.18s ease, background 0.18s ease;
-    transition:         color 0.18s ease, background 0.18s ease;
+    text-decoration: none !important;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    -webkit-transition: color 0.15s ease;
+    transition:         color 0.15s ease;
 }
-#nav-bar a:hover,
-#nav-bar a:focus,
-#nav-bar li:hover > a,
-#nav-bar li:focus > a {
-    color: var(--kodi-accent) !important;
+#nav-bar nav ul li > a > i {
+    display: inline-block !important;
+    width: 28px !important;
+    font-size: 20px !important;
+    margin-right: 14px !important;
+    text-align: center;
+    color: inherit !important;
+    opacity: 0.85;
+}
+#nav-bar nav ul li > a > span {
+    display: inline !important;
+    color: inherit !important;
+    font-family: 'Roboto', sans-serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Hover (also fires on virtual-cursor mousemove) — brighter, cyan tint. */
+#nav-bar nav ul li:hover {
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+#nav-bar nav ul li:hover > a {
+    color: var(--kodi-text) !important;
+}
+
+/* Active route (Chorus2 toggles a class like `.active` on the matching
+   <li>; selector list keeps it flexible). Cyan fill + accent left edge
+   bar — Kodi-Estuary's signature. */
+#nav-bar nav ul li.active,
+#nav-bar nav ul li.active:hover,
+#nav-bar nav ul li.selected {
     background: var(--kodi-accent-soft) !important;
-    text-shadow: 0 0 12px var(--kodi-accent-glow);
+    border-left-color: var(--kodi-accent) !important;
+}
+#nav-bar nav ul li.active > a,
+#nav-bar nav ul li.selected > a {
+    color: var(--kodi-accent) !important;
+    font-weight: 500;
+}
+
+/* Sub-menu (children) — indent under the parent, smaller text. */
+#nav-bar nav ul li ul {
+    margin: 0;
+    padding: 0;
+}
+#nav-bar nav ul li ul li > a {
+    padding-left: 60px !important;
+    height: 40px !important;
+    font-size: 13px;
+    color: var(--kodi-text-faint) !important;
+}
+#nav-bar nav ul li ul li:hover > a {
+    color: var(--kodi-text) !important;
+}
+
+/* Shift the rest of the layout right so it doesn't sit behind the wider
+   sidebar. All of these are position:fixed with left:0 by Chorus2's
+   base.css — we push the left edge to where the sidebar ends. */
+#header,
+#fanart,
+#fanart-overlay,
+#content,
+#player-wrapper,
+#sidebar-two {
+    left: var(--tz-sidebar-w) !important;
 }
 
 /* Top header */
@@ -273,223 +382,7 @@ input:focus {
     background: var(--kodi-accent-soft) !important;
 }
 
-/* ===== Estuary home overlay =============================================
-   tizen-home.js builds a horizontal-menu home screen on top of Chorus2's
-   vertical layout. We don't restructure Chorus2's DOM — we paint a
-   z-indexed overlay over it on the landing route, and hide the overlay
-   the moment the user navigates into Movies / TV / etc. Chorus2's data
-   layer keeps working underneath. */
-
-.tz-home {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    z-index: 100000;
-    background: var(--kodi-bg);
-    color: var(--kodi-text);
-    font-family: 'Roboto', sans-serif;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-/* When the home overlay is on, hide Chorus2's chrome behind it. We
-   could leave it visible (the overlay's bg covers everything) but
-   keeping it hidden avoids stacking glitches if the overlay ever has
-   transparent regions. pointer-events:none also ensures the cursor's
-   elementFromPoint can't accidentally land on a hidden input (Chorus2's
-   search bar is a focus-grabbing offender). */
-html.tz-home-open #header,
-html.tz-home-open #nav-bar,
-html.tz-home-open #fanart,
-html.tz-home-open #fanart-overlay,
-html.tz-home-open #player-wrapper,
-html.tz-home-open #sidebar-two,
-html.tz-home-open #content {
-    visibility: hidden !important;
-    pointer-events: none !important;
-}
-
-/* --- Fanart (full-bleed image + Estuary layered gradient) -------------- */
-.tz-home-fanart {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    z-index: 0;
-    background-color: var(--kodi-bg);
-    background-size: cover;
-    background-position: center;
-}
-.tz-home-fanart-overlay {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    z-index: 1;
-    background:
-        radial-gradient(ellipse at 30% 40%,
-                        rgba(21, 25, 30, 0.40) 0%,
-                        rgba(21, 25, 30, 0.95) 70%),
-        linear-gradient(to bottom,
-                        rgba(21, 25, 30, 0.50) 0%,
-                        rgba(21, 25, 30, 0.70) 40%,
-                        rgba(21, 25, 30, 0.98) 100%),
-        linear-gradient(to right,
-                        rgba(21, 25, 30, 0.85) 0%,
-                        rgba(21, 25, 30, 0.30) 60%);
-}
-
-/* --- Top bar (logo + clock) ------------------------------------------- */
-.tz-home-topbar {
-    position: relative;
-    z-index: 3;
-    padding: 28px 56px 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-}
-.tz-home-logo {
-    font-size: 22px;
-    font-weight: 100;
-    letter-spacing: 6px;
-    color: var(--kodi-text);
-}
-.tz-home-logo strong {
-    color: var(--kodi-accent);
-    font-weight: 500;
-}
-.tz-home-clock-wrap { text-align: right; }
-.tz-home-clock {
-    font-size: 32px;
-    font-weight: 100;
-    line-height: 1;
-    letter-spacing: 2px;
-}
-.tz-home-date {
-    font-size: 12px;
-    color: var(--kodi-text-dim);
-    letter-spacing: 3px;
-    margin-top: 6px;
-    font-weight: 400;
-}
-
-/* --- Hero (welcome / featured) ---------------------------------------- */
-.tz-home-hero {
-    position: relative;
-    z-index: 2;
-    padding: 56px 56px 0;
-}
-.tz-home-hero-label {
-    font-size: 11px;
-    letter-spacing: 5px;
-    color: var(--kodi-accent);
-    text-transform: uppercase;
-    margin-bottom: 14px;
-    font-weight: 500;
-}
-.tz-home-hero-title {
-    font-size: 56px;
-    font-weight: 100;
-    line-height: 1;
-    margin-bottom: 18px;
-    text-shadow: 0 4px 32px rgba(0, 0, 0, 0.9);
-    letter-spacing: -1px;
-}
-.tz-home-hero-meta {
-    color: var(--kodi-text-dim);
-    font-size: 13px;
-    font-weight: 400;
-    letter-spacing: 1px;
-}
-.tz-home-hero-meta > span { display: inline-block; vertical-align: middle; }
-.tz-home-hero-meta > span + span { margin-left: 18px; }
-.tz-home-dot { color: var(--kodi-accent); font-size: 8px; }
-
-/* --- Main menu (horizontal Estuary tiles) ----------------------------- */
-.tz-home-menu {
-    position: relative;
-    z-index: 2;
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 56px;
-}
-.tz-home-menu-item {
-    flex: 0 0 auto;
-    padding: 28px 32px;
-    margin: 0 4px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-    -webkit-transition: all 0.18s ease;
-    transition:         all 0.18s ease;
-    min-width: 150px;
-    border-radius: 2px;
-    box-shadow: inset 0 0 0 2px transparent;
-    color: var(--kodi-text);
-    outline: none;
-}
-.tz-home-menu-item svg {
-    width: 60px;
-    height: 60px;
-    stroke: var(--kodi-text);
-    opacity: 0.85;
-    margin-bottom: 18px;
-    -webkit-transition: all 0.18s ease;
-    transition:         all 0.18s ease;
-}
-.tz-home-menu-item span {
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--kodi-text);
-    letter-spacing: 4px;
-    opacity: 0.85;
-    -webkit-transition: all 0.18s ease;
-    transition:         all 0.18s ease;
-}
-.tz-home-menu-item:hover svg,
-.tz-home-menu-item:hover span,
-.tz-home-menu-item.tz-focused svg,
-.tz-home-menu-item.tz-focused span {
-    opacity: 1;
-}
-.tz-home-menu-item.tz-focused {
-    background: var(--kodi-accent-soft);
-    box-shadow:
-        inset 0 0 0 2px var(--kodi-accent),
-        0 0 60px var(--kodi-accent-glow);
-    -webkit-transform: translateY(-4px);
-    transform:         translateY(-4px);
-}
-.tz-home-menu-item.tz-focused svg {
-    stroke: var(--kodi-accent);
-    -webkit-filter: drop-shadow(0 0 8px var(--kodi-accent-glow));
-    filter:         drop-shadow(0 0 8px var(--kodi-accent-glow));
-}
-.tz-home-menu-item.tz-focused span {
-    color: var(--kodi-accent);
-    font-weight: 500;
-}
-
-/* --- Hint bar (remote key cues) --------------------------------------- */
-.tz-home-hint {
-    position: absolute;
-    bottom: 14px;
-    left: 56px;
-    right: 56px;
-    z-index: 2;
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
-    letter-spacing: 3px;
-    color: var(--kodi-text-faint);
-    text-transform: uppercase;
-    pointer-events: none;
-}
-.tz-home-key {
-    display: inline-block;
-    padding: 2px 8px;
-    border: 1px solid var(--kodi-text-faint);
-    border-radius: 2px;
-    margin-right: 6px;
-    font-family: monospace;
-    letter-spacing: 0;
-}
+/* (Home-overlay CSS removed — we now skin Chorus2's existing sidebar
+   directly rather than painting a custom overlay on top. The
+   .tz-home-* selectors and html.tz-home-open chain are gone; the
+   wider #nav-bar above is the new home-screen treatment.) */
