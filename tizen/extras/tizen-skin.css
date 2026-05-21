@@ -56,11 +56,25 @@ textarea {
 .kodi-section-label,
 .layout__heading,
 h2.heading,
-h3.heading {
+h3.heading,
+.local-playlist-header h2,
+.details-header h2 {
     text-transform: uppercase;
     letter-spacing: 3px;
     font-weight: 300;
     color: var(--kodi-text-dim);
+}
+
+/* Page-title display text — Estuary uses Roboto-100 (Thin) at large
+   sizes with slight negative tracking for hero/movie/show titles.
+   Chorus2's per-page <h1>/.page-title gets the treatment. */
+h1,
+.page-title,
+.page-header h1,
+.landing-content h1 {
+    font-weight: 100;
+    letter-spacing: -0.5px;
+    color: var(--kodi-text);
 }
 
 /* ===== Surfaces ========================================================
@@ -84,12 +98,52 @@ body {
     background-color: var(--kodi-bg-elev) !important;
     /* keep the original logo background-image — leave default */
 }
+/* Icon items: dim by default, brighten with cyan glow on hover / focus.
+   Selector list is wide because Chorus2 ships several link shapes inside
+   #nav-bar. Most have an <a> with an icon-bearing <i> inside. */
+#nav-bar a,
+#nav-bar li > a,
+#nav-bar i {
+    color: var(--kodi-text-dim) !important;
+    -webkit-transition: color 0.18s ease, background 0.18s ease;
+    transition:         color 0.18s ease, background 0.18s ease;
+}
+#nav-bar a:hover,
+#nav-bar a:focus,
+#nav-bar li:hover > a,
+#nav-bar li:focus > a {
+    color: var(--kodi-accent) !important;
+    background: var(--kodi-accent-soft) !important;
+    text-shadow: 0 0 12px var(--kodi-accent-glow);
+}
 
 /* Top header */
 #header {
     background: var(--kodi-bg-elev) !important;
     color: var(--kodi-text-dim) !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Kodi / Local player toggle — was bootstrap-pill in white-on-dark.
+   Reshape to flat Estuary-style tabs: dim by default, cyan with a
+   bottom-underline accent when active. */
+.player-toggle {
+    background: transparent !important;
+}
+.player-toggle li {
+    color: var(--kodi-text-faint) !important;
+    border-bottom: 2px solid transparent !important;
+    -webkit-transition: color 0.15s ease, border-color 0.15s ease;
+    transition:         color 0.15s ease, border-color 0.15s ease;
+}
+.player-toggle li:hover,
+.player-toggle li:focus {
+    color: var(--kodi-text) !important;
+}
+.player-toggle li.active {
+    color: var(--kodi-accent) !important;
+    border-bottom-color: var(--kodi-accent) !important;
+    text-shadow: 0 0 12px var(--kodi-accent-glow);
 }
 
 /* Right-hand panel (playlist / queue) */
@@ -112,16 +166,22 @@ body {
     font-weight: 300;
 }
 
-/* Fanart layer — Chorus2 paints a randomized background-image here.
-   We want to KEEP fanart (Estuary loves it) but darken it so foreground
-   content stays readable. A dark vignette pseudo-element does it. */
+/* Fanart layer — Chorus2 paints a randomized background-image on #fanart
+   itself. The overlay gradient on its own wasn't dim enough on the TV
+   (first-pass on real hardware showed the fanart still dominating the
+   screen). Two-pronged: dim the image with a CSS filter, then a still-
+   tinted gradient on the overlay element for the vertical falloff. */
+#fanart {
+    -webkit-filter: brightness(0.28) saturate(0.55) !important;
+    filter:         brightness(0.28) saturate(0.55) !important;
+}
 #fanart-overlay {
     background:
         linear-gradient(
             180deg,
-            rgba(21, 25, 30, 0.78) 0%,
-            rgba(21, 25, 30, 0.55) 40%,
-            rgba(21, 25, 30, 0.85) 100%
+            rgba(21, 25, 30, 0.55) 0%,
+            rgba(21, 25, 30, 0.20) 40%,
+            rgba(21, 25, 30, 0.70) 100%
         ) !important;
 }
 
@@ -211,4 +271,222 @@ input:focus {
 }
 .table-hover > tbody > tr:hover {
     background: var(--kodi-accent-soft) !important;
+}
+
+/* ===== Estuary home overlay =============================================
+   tizen-home.js builds a horizontal-menu home screen on top of Chorus2's
+   vertical layout. We don't restructure Chorus2's DOM — we paint a
+   z-indexed overlay over it on the landing route, and hide the overlay
+   the moment the user navigates into Movies / TV / etc. Chorus2's data
+   layer keeps working underneath. */
+
+.tz-home {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 100000;
+    background: var(--kodi-bg);
+    color: var(--kodi-text);
+    font-family: 'Roboto', sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* When the home overlay is on, hide Chorus2's chrome behind it. We
+   could leave it visible (the overlay's bg covers everything) but
+   keeping it hidden avoids stacking glitches if the overlay ever has
+   transparent regions. */
+html.tz-home-open #header,
+html.tz-home-open #nav-bar,
+html.tz-home-open #fanart,
+html.tz-home-open #fanart-overlay,
+html.tz-home-open #player-wrapper,
+html.tz-home-open #sidebar-two,
+html.tz-home-open #content {
+    visibility: hidden !important;
+}
+
+/* --- Fanart (full-bleed image + Estuary layered gradient) -------------- */
+.tz-home-fanart {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0;
+    background-color: var(--kodi-bg);
+    background-size: cover;
+    background-position: center;
+}
+.tz-home-fanart-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 1;
+    background:
+        radial-gradient(ellipse at 30% 40%,
+                        rgba(21, 25, 30, 0.40) 0%,
+                        rgba(21, 25, 30, 0.95) 70%),
+        linear-gradient(to bottom,
+                        rgba(21, 25, 30, 0.50) 0%,
+                        rgba(21, 25, 30, 0.70) 40%,
+                        rgba(21, 25, 30, 0.98) 100%),
+        linear-gradient(to right,
+                        rgba(21, 25, 30, 0.85) 0%,
+                        rgba(21, 25, 30, 0.30) 60%);
+}
+
+/* --- Top bar (logo + clock) ------------------------------------------- */
+.tz-home-topbar {
+    position: relative;
+    z-index: 3;
+    padding: 28px 56px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+.tz-home-logo {
+    font-size: 22px;
+    font-weight: 100;
+    letter-spacing: 6px;
+    color: var(--kodi-text);
+}
+.tz-home-logo strong {
+    color: var(--kodi-accent);
+    font-weight: 500;
+}
+.tz-home-clock-wrap { text-align: right; }
+.tz-home-clock {
+    font-size: 32px;
+    font-weight: 100;
+    line-height: 1;
+    letter-spacing: 2px;
+}
+.tz-home-date {
+    font-size: 12px;
+    color: var(--kodi-text-dim);
+    letter-spacing: 3px;
+    margin-top: 6px;
+    font-weight: 400;
+}
+
+/* --- Hero (welcome / featured) ---------------------------------------- */
+.tz-home-hero {
+    position: relative;
+    z-index: 2;
+    padding: 56px 56px 0;
+}
+.tz-home-hero-label {
+    font-size: 11px;
+    letter-spacing: 5px;
+    color: var(--kodi-accent);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-weight: 500;
+}
+.tz-home-hero-title {
+    font-size: 56px;
+    font-weight: 100;
+    line-height: 1;
+    margin-bottom: 18px;
+    text-shadow: 0 4px 32px rgba(0, 0, 0, 0.9);
+    letter-spacing: -1px;
+}
+.tz-home-hero-meta {
+    color: var(--kodi-text-dim);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 1px;
+}
+.tz-home-hero-meta > span { display: inline-block; vertical-align: middle; }
+.tz-home-hero-meta > span + span { margin-left: 18px; }
+.tz-home-dot { color: var(--kodi-accent); font-size: 8px; }
+
+/* --- Main menu (horizontal Estuary tiles) ----------------------------- */
+.tz-home-menu {
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 56px;
+}
+.tz-home-menu-item {
+    flex: 0 0 auto;
+    padding: 28px 32px;
+    margin: 0 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    -webkit-transition: all 0.18s ease;
+    transition:         all 0.18s ease;
+    min-width: 150px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 2px transparent;
+    color: var(--kodi-text);
+    outline: none;
+}
+.tz-home-menu-item svg {
+    width: 60px;
+    height: 60px;
+    stroke: var(--kodi-text);
+    opacity: 0.85;
+    margin-bottom: 18px;
+    -webkit-transition: all 0.18s ease;
+    transition:         all 0.18s ease;
+}
+.tz-home-menu-item span {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--kodi-text);
+    letter-spacing: 4px;
+    opacity: 0.85;
+    -webkit-transition: all 0.18s ease;
+    transition:         all 0.18s ease;
+}
+.tz-home-menu-item:hover svg,
+.tz-home-menu-item:hover span,
+.tz-home-menu-item.tz-focused svg,
+.tz-home-menu-item.tz-focused span {
+    opacity: 1;
+}
+.tz-home-menu-item.tz-focused {
+    background: var(--kodi-accent-soft);
+    box-shadow:
+        inset 0 0 0 2px var(--kodi-accent),
+        0 0 60px var(--kodi-accent-glow);
+    -webkit-transform: translateY(-4px);
+    transform:         translateY(-4px);
+}
+.tz-home-menu-item.tz-focused svg {
+    stroke: var(--kodi-accent);
+    -webkit-filter: drop-shadow(0 0 8px var(--kodi-accent-glow));
+    filter:         drop-shadow(0 0 8px var(--kodi-accent-glow));
+}
+.tz-home-menu-item.tz-focused span {
+    color: var(--kodi-accent);
+    font-weight: 500;
+}
+
+/* --- Hint bar (remote key cues) --------------------------------------- */
+.tz-home-hint {
+    position: absolute;
+    bottom: 14px;
+    left: 56px;
+    right: 56px;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--kodi-text-faint);
+    text-transform: uppercase;
+    pointer-events: none;
+}
+.tz-home-key {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--kodi-text-faint);
+    border-radius: 2px;
+    margin-right: 6px;
+    font-family: monospace;
+    letter-spacing: 0;
 }
