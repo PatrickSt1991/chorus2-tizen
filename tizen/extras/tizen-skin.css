@@ -6,10 +6,14 @@
  * !important on every rule. See chorus2-estuary-reskin-brief.md for
  * the design language and phased rollout.
  *
- * Phase 0: design tokens + a single visible verification rule. If the
- * page background turns Kodi-dark on the TV after sideload, the pipe
- * is wired and we can start writing real skin in Phase 1.
+ * Phase 1: palette + typography. Paint Chorus2's actual region
+ * containers (#nav-bar, #header, #sidebar-two, #player-wrapper) in
+ * Kodi-dark, plus Roboto everywhere. The body itself isn't a useful
+ * paint target because Chorus2 stacks full-viewport region <div>s
+ * on top of it — see the Phase 0 diagnostic findings.
  */
+
+/* ===== Design tokens =================================================== */
 
 :root {
     /* Surface */
@@ -31,22 +35,180 @@
     --kodi-shadow-glow:  0 0 60px var(--kodi-accent-glow);
 }
 
-/* --- Phase 0 verification (DIAGNOSTIC — ripped out in Phase 1) -----------
-   Bright magenta border + dark bg on html AND body so we can tell at a
-   glance which thing the user is seeing on the TV:
-     - Border visible + dark surround: file loaded, rule fires, but
-       Chorus2's app shell paints over body with its own bg → we just
-       need to target the right inner container.
-     - Border NOT visible at all: file isn't being loaded (probably the
-       <link> in built index.html doesn't resolve on file:// origin) →
-       different fix.
-   Literal #15191e (not var()) to rule out the small chance that
-   Chromium 56 doesn't resolve var() inside !important declarations. */
+/* ===== Typography ======================================================
+   Apply Roboto globally. Chorus2's base.css sets Helvetica Neue / Arial
+   on body — our rule loads after, same specificity, so we win without
+   !important. Buttons and inputs need it too because of UA defaults. */
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+    font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* Section labels (group headers in Estuary use heavy tracking) get the
+   uppercase + letter-spacing signature. Chorus2 uses h3 in places where
+   Estuary would put a tracked label; if it ends up looking wrong on a
+   specific page we narrow it down in Phase 2. */
+.kodi-section-label,
+.layout__heading,
+h2.heading,
+h3.heading {
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    font-weight: 300;
+    color: var(--kodi-text-dim);
+}
+
+/* ===== Surfaces ========================================================
+   Paint each Chorus2 region container in the Kodi palette. */
+
 html,
 body {
-    background: #15191e !important;
+    background: var(--kodi-bg) !important;
+    color: var(--kodi-text);
 }
-body {
-    border: 8px solid #ff00ff !important;
-    box-sizing: border-box !important;
+
+/* Left icon sidebar — was rgba(255,255,255,0.9), the most jarring
+   "this is a website" tell. Make it Kodi-dark elevated. The logo
+   header inside (#nav-header) keeps its image; we just darken
+   around it. */
+#nav-bar {
+    background: var(--kodi-bg-elev) !important;
+    box-shadow: 1px 0 0 0 rgba(255, 255, 255, 0.04) !important;
+}
+#nav-bar #nav-header {
+    background-color: var(--kodi-bg-elev) !important;
+    /* keep the original logo background-image — leave default */
+}
+
+/* Top header */
+#header {
+    background: var(--kodi-bg-elev) !important;
+    color: var(--kodi-text-dim) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Right-hand panel (playlist / queue) */
+#sidebar-two {
+    background: var(--kodi-bg-elev) !important;
+}
+
+/* Bottom player bar — was already nearly-black; align to our palette. */
+#player-wrapper {
+    background: var(--kodi-bg-elev) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+    color: var(--kodi-text);
+}
+#player-wrapper .playing-title {
+    color: var(--kodi-text);
+    font-weight: 500;
+}
+#player-wrapper .playing-subtitle {
+    color: var(--kodi-text-dim);
+    font-weight: 300;
+}
+
+/* Fanart layer — Chorus2 paints a randomized background-image here.
+   We want to KEEP fanart (Estuary loves it) but darken it so foreground
+   content stays readable. A dark vignette pseudo-element does it. */
+#fanart-overlay {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(21, 25, 30, 0.78) 0%,
+            rgba(21, 25, 30, 0.55) 40%,
+            rgba(21, 25, 30, 0.85) 100%
+        ) !important;
+}
+
+/* Main content area sits over the fanart. Keep transparent so the
+   darkened fanart shows through, but force text colour. */
+#content {
+    color: var(--kodi-text);
+}
+
+/* ===== Links + accents =================================================
+   Most Chorus2 chrome links / icon "active" states default to Bootstrap
+   blue (#337ab7). Estuary's signature is cyan. Repaint. */
+a,
+a:visited {
+    color: var(--kodi-accent) !important;
+}
+a:hover,
+a:focus {
+    color: var(--kodi-accent) !important;
+    text-shadow: 0 0 12px var(--kodi-accent-glow);
+}
+
+/* Selected / active nav items get the cyan-soft fill we'll reuse for
+   focus states in Phase 3. */
+#nav-bar li.active > a,
+#nav-bar a.active,
+.layout__nav-item.active {
+    background: var(--kodi-accent-soft) !important;
+    color: var(--kodi-accent) !important;
+    box-shadow: inset 3px 0 0 0 var(--kodi-accent) !important;
+}
+
+/* ===== Search + form controls =========================================
+   Bootstrap input default is light. Paint dark. */
+.form-control,
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input[type="password"] {
+    background: var(--kodi-bg) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color: var(--kodi-text) !important;
+}
+.form-control:focus,
+input:focus {
+    border-color: var(--kodi-accent) !important;
+    box-shadow: 0 0 0 3px var(--kodi-accent-soft) !important;
+    outline: none !important;
+}
+
+/* ===== Dropdowns, modals, panels ======================================= */
+.dropdown-menu,
+.modal-content,
+.popover,
+.panel,
+.panel-body {
+    background: var(--kodi-bg-elev) !important;
+    color: var(--kodi-text) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+.dropdown-menu > li > a {
+    color: var(--kodi-text) !important;
+}
+.dropdown-menu > li > a:hover,
+.dropdown-menu > li > a:focus {
+    background: var(--kodi-accent-soft) !important;
+    color: var(--kodi-accent) !important;
+}
+
+/* ===== Tables (used in song lists, playlists) ========================== */
+.table,
+.table > thead,
+.table > tbody,
+.table > tfoot {
+    color: var(--kodi-text);
+}
+.table > thead > tr > th {
+    border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--kodi-text-dim) !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 11px;
+}
+.table > tbody > tr > td {
+    border-top-color: rgba(255, 255, 255, 0.04) !important;
+}
+.table-hover > tbody > tr:hover {
+    background: var(--kodi-accent-soft) !important;
 }
