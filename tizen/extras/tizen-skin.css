@@ -31,11 +31,22 @@
     --kodi-shadow-glow:  0 0 60px var(--kodi-accent-glow);
 }
 
-/* --- Phase 0 verification --------------------------------------------------
-   Single rule, !important to defeat Chorus2's base.css `body { background-color:#fff }`
-   that sits before us in the cascade. If you sideload and the page turns
-   dark Kodi-grey, the wiring is correct. We rip out this rule (or just
-   layer the real palette on top) in Phase 1. */
+/* --- Phase 0 verification (DIAGNOSTIC — ripped out in Phase 1) -----------
+   Bright magenta border + dark bg on html AND body so we can tell at a
+   glance which thing the user is seeing on the TV:
+     - Border visible + dark surround: file loaded, rule fires, but
+       Chorus2's app shell paints over body with its own bg → we just
+       need to target the right inner container.
+     - Border NOT visible at all: file isn't being loaded (probably the
+       <link> in built index.html doesn't resolve on file:// origin) →
+       different fix.
+   Literal #15191e (not var()) to rule out the small chance that
+   Chromium 56 doesn't resolve var() inside !important declarations. */
+html,
 body {
-    background: var(--kodi-bg) !important;
+    background: #15191e !important;
+}
+body {
+    border: 8px solid #ff00ff !important;
+    box-sizing: border-box !important;
 }
