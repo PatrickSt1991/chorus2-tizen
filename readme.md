@@ -18,6 +18,17 @@ native-feeling TV client for browsing and controlling your library.
 
 ---
 
+## Screenshots
+<img width="1457" height="834" alt="chorus2-tizen-login" src="https://github.com/user-attachments/assets/47f844e3-28e1-41c3-a82a-e8ae20747d08" />
+
+<img width="1457" height="834" alt="chorus2-tizen-default" src="https://github.com/user-attachments/assets/867de1c0-3ba6-43bc-8166-42b991a9a4f6" />
+
+<img width="1457" height="834" alt="chorus2-tizen-browse" src="https://github.com/user-attachments/assets/be00b347-f187-413f-868b-46096eb32e3c" />
+
+<img width="1457" height="834" alt="chorus2-tizen-avplay" src="https://github.com/user-attachments/assets/ebbf7fb3-caab-4239-9125-a4d1a761b210" />
+
+
+
 ## Install
 
 1. **Download the latest `.wgt`** from the
